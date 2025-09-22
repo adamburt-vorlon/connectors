@@ -18,3 +18,7 @@ black
 .env
 .pytest_cache
 /myenv
+/lib
+/lib64
+/bin
+pyvenv.cfg
