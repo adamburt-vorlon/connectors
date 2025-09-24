@@ -1,7 +1,8 @@
 import sys
 from datetime import datetime, timezone
-from stix2 import Software, Relationship
+from stix2 import Software, Relationship, URL
 import uuid
+import json
 
 from pycti import OpenCTIConnectorHelper, CustomObservableText
 
@@ -56,6 +57,53 @@ class ConnectorMSInternalApps:
         self.helper = helper
         self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper, self.config)
+    
+    def get_existing_scopes(self) -> list:
+        return_list = []
+        existing_indicators = self.helper.api.stix_cyber_observable.list(
+            filters={
+                "mode": "and",
+                "filters":[
+                    {
+                        "key": "entity_type",
+                        "values": ["Text"]
+                    },
+                    {
+                        "key": "objectLabel",
+                        "values": ["scope"]
+                    }
+                ],
+                "filterGroups":[]
+            },
+            withPagination=True
+        )
+        has_more = True
+        while has_more:
+            pagination = existing_indicators.get('pagination', {})
+            has_more = pagination.get('hasNextPage', False)
+            entities = existing_indicators.get('entities', [])
+            for entity in entities:
+                return_list.append(entity.get('standard_id'))
+            if has_more:
+                existing_indicators = self.helper.api.indicator.list(
+                    filters={
+                        "mode": "and",
+                        "filters":[
+                            {
+                                "key": "entity_type",
+                                "values": ["Text"]
+                            },
+                            {
+                                "key": "objectLabel",
+                                "values": ["scope"]
+                            }
+                        ],
+                        "filterGroups":[]
+                    },
+                    withPagination=True,
+                    after=pagination.get('endCursor')
+                )
+        return return_list
 
     def _collect_intelligence(self) -> list:
         """
@@ -75,62 +123,94 @@ class ConnectorMSInternalApps:
         vendor = "microsoft365"
         
         # Log all scopes to prevent creating multiple times
-        global_scopes = []
+        global_scopes = []#self.get_existing_scopes()
+        global_redirect_uris = []
         
         
         # Get entities from external sources
         entities: dict = self.client.get_entities()
         apps = entities.get('apps', {})
+        rids = entities.get('resourceidentifiers', {})
 
         for app_id, app_data in apps.items():
             app_name = app_data.get('name')
             redirect_uris = sorted(app_data.get('redirect_uris', []))
             
-            scopes = []
-            software = Software(
+            # Create main software observable
+            software = json.loads(Software(
                 name=app_name,
                 swid=app_id,
                 vendor=vendor
-            )
+            ).serialize())
+            software["x_opencti_labels"] = [vendor, "application"]
             stix_objects.append(software)
             
+            # Create observables for the redirect URIs
+            for uri in redirect_uris:
+                url_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{uri}:{vendor}")
+                if url_deterministic_uuid not in global_redirect_uris:
+                    url = {
+                        "type": "url",
+                        "id": f"url--{url_deterministic_uuid}",
+                        "value": uri,
+                        "x_opencti_main_observable": True,
+                        "x_opencti_author": "microsoft365",
+                        "x_opencti_labels": ["redirect", vendor]
+                    }
+                    stix_objects.append(url)
+                    global_redirect_uris.append(url_deterministic_uuid)
+                else:
+                    url = {
+                        "id": f"url--{url_deterministic_uuid}"
+                    }
+                
+                # Create the relationship
+                url_relationship = Relationship(
+                    source_ref=url.get('id'),
+                    relationship_type="related-to",
+                    target_ref=software.get('id')
+                )
+                stix_objects.append(url_relationship)
+            
+            
             # Aggregate all scopes
+            scopes = []
             for scope_dest, scope_data in app_data.get('scopes', {}).items():
                 if scope_data and isinstance(scope_data, list):
                     for scope_item in scope_data:
                         if scope_item not in scopes:
                             scopes.append(scope_item)
             scopes = sorted(scopes)
-            author = "microsoft365"
             
             for scope in scopes:
                 
-                deterministic_uuid = uuid.uuid5(NAMESPACE, f"{scope}:{author}")
-                if deterministic_uuid not in global_scopes:
+                scope_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{scope}:{vendor}")
+                if scope_deterministic_uuid not in global_scopes:
+                    
+                    # Create the scope observable if it does not exist
                     text_obj = {
                         "type": "Text",
-                        "id": f"text--{deterministic_uuid}",
+                        "id": f"text--{scope_deterministic_uuid}",
                         "value": scope,
-                        "author": author,
-                        "description": "",
                         "x_opencti_main_observable": True,
-                        "x_opencti_author": author,
+                        "x_opencti_author": vendor,
                         "labels": ["scope", vendor]
                     }
+                    stix_objects.append(text_obj)
+                    global_scopes.append(scope_deterministic_uuid)
                 else:
-                    text_obj = global_scopes[deterministic_uuid]
-                r = Relationship(
+                    text_obj = {
+                        "id": f"text--{scope_deterministic_uuid}"
+                    }
+                
+                # Create the relationship
+                scope_relationship = Relationship(
                     source_ref=text_obj.get('id'),
                     relationship_type="related-to",
-                    target_ref=software.id
+                    target_ref=software.get('id')
                 )
-                stix_objects.append(text_obj)
-                stix_objects.append(r)
-                break
-            
-            #Just add 1 to test
-            break
-            
+                stix_objects.append(scope_relationship)
+
         # ===========================
         # === Add your code above ===
         # ===========================
@@ -171,7 +251,7 @@ class ConnectorMSInternalApps:
                 )
 
             # Friendly name will be displayed on OpenCTI platform
-            friendly_name = "Connector template feed"
+            friendly_name = "Microsoft Internal Applications"
 
             # Initiate a new work
             work_id = self.helper.api.work.initiate_work(
