@@ -1,5 +1,5 @@
 import sys
-from stix2 import Indicator, IPv4Address, Relationship
+from stix2 import Indicator, IPv4Address, Relationship, IPv6Address
 from datetime import datetime, timezone, timedelta
 import pytz
 
@@ -56,6 +56,57 @@ class ConnectorTorExitNodes:
         self.helper = helper
         self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper, self.config)
+    
+    def get_existing_indicators(self) -> dict:
+        return_list = {}
+        existing_indicators = self.helper.api.indicator.list(
+            filters={
+                "mode": "and",
+                "filters":[
+                    {
+                        "key": ["entity_type"],
+                        "values": "Indicator"
+                    },
+                    {
+                        "key": "objectLabel",
+                        "values": ["tor-exit-node"]
+                    }
+                ],
+                "filterGroups":[]
+            },
+            withPagination=True
+        )
+        has_more = True
+        while has_more:
+            pagination = existing_indicators.get('pagination', {})
+            has_more = pagination.get('hasNextPage', False)
+            entities = existing_indicators.get('entities', [])
+            for entity in entities:
+                return_list.update({
+                    entity.get('pattern'): {
+                        "standard_id": entity.get('standard_id', '')
+                    }
+                })
+            if has_more:
+                existing_indicators = self.helper.api.indicator.list(
+                    filters={
+                        "mode": "and",
+                        "filters":[
+                            {
+                                "key": ["entity_type"],
+                                "values": "Indicator"
+                            },
+                            {
+                                "key": "objectLabel",
+                                "values": ["tor-exit-node"]
+                            }
+                        ],
+                        "filterGroups":[]
+                    },
+                    withPagination=True,
+                    after=pagination.get('endCursor')
+                )
+        return return_list
 
     def _collect_intelligence(self) -> list:
         """
@@ -71,58 +122,30 @@ class ConnectorTorExitNodes:
 
         # Get entities from external sources
         entities = self.client.get_entities()
+        
+        # Get all existing indicators that have the tor-exit-nodes label
+        existing_indicators: dict = self.get_existing_indicators()
 
         # Convert into STIX2 object and add it on a list
         valid_from = datetime.now(pytz.UTC)
         valid_to = (valid_from + timedelta(hours=1))
         self.helper.log_info(f"Found {len(entities)} entities")
-        labels = self.helper.api.label.list(filters={
-            "mode": "and",
-            "filters": [
-                {
-                    "key": "value",
-                    "values": [tor_exit_node_label]
-                }
-            ],
-            "filterGroups": []
-        })
-        if labels:
-            tor_label_id = labels[0].get('id')
-        else:
-            tor_label_id = ''
         for entity in entities:
             ip = entity.get('value', '')
             if ip:
                 ip_type = ""
                 if self.converter_to_stix._is_ipv4(ip):
                     ip_type = "ipv4-addr"
+                    observable = IPv4Address(value=ip)
                 elif self.converter_to_stix._is_ipv6(ip):
                     ip_type = "ipv6-addr"
+                    observable = IPv6Address(value=ip)
                 
-                observable = IPv4Address(value=ip)
-                
-                # Check if the indicator already exists
-                existing_inds = self.helper.api.indicator.list(filters={
-                    "mode": "and",
-                    "filters":[
-                        {
-                            "key":"pattern_type",
-                            "values":["stix"]
-                        },
-                        {
-                            "key":"pattern",
-                            "values":[f"[IPv4-Addr:value = '{ip}']"]
-                        }
-                    ],
-                    "filterGroups":[]
-                })
-                if tor_label_id:
-                    existing_inds[:] = [x for x in existing_inds if tor_label_id in x.get('objectLabelIds', [])]
-                if existing_inds:
-                    existing_ind = existing_inds[0]
+                pattern=f"[{ip_type}:value = '{ip}']"
+                if pattern in existing_indicators:
                     indicator = Indicator(
-                        id=existing_ind.get('standard_id'),
-                        name=existing_ind.get('name'),
+                        id=existing_indicators[pattern].get('standard_id'),
+                        name=existing_indicators[pattern].get('name'),
                         valid_from=valid_from,
                         valid_until=valid_to,
                         pattern_type="stix",
