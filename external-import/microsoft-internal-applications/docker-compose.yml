@@ -1,6 +1,6 @@
 services:
-  connector-torexitnodes:
-    image: torexitnodes:latest
+  connector-microsoft-internal-apps:
+    image: msinternalapps:latest
     environment:
       - OPENCTI_URL=${OPENCTI_BASE_URL}
       - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
@@ -9,15 +9,13 @@ services:
       - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
       - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
       - CONNECTOR_DURATION_PERIOD=${CONNECTOR_DURATION_PERIOD}
-      - OPENCTI_BROKER_HOST=${OPENCTI_HOSTNAME}
-      - OPENCTI_BROKER_PORT=${RABBITMQ_PORT}
-      - OPENCTI_BROKER_USERNAME=${RABBITMQ_DEFAULT_USER}
-      - OPENCTI_BROKER_PASSWORD=${RABBITMQ_DEFAULT_PASS}
-      - TOR_BASE_URL=${TOR_BASE_URL}
-      - TOR_BASE_API_KEY=${TOR_BASE_API_KEY}
+      - CONNECTOR_UUID_NAMESPACE=${CONNECTOR_UUID_NAMESPACE}
+      - CONNECTOR_TEMPLATE_API_BASE_URL=${CONNECTOR_TEMPLATE_API_BASE_URL}
+      - CONNECTOR_TEMPLATE_API_KEY=${CONNECTOR_TEMPLATE_API_KEY}
+      - CONNECTOR_TEMPLATE_TLP_LEVEL=${CONNECTOR_TEMPLATE_TLP_LEVEL}
+    restart: no
     networks:
       - opencti-network
-    restart: no
 
 networks:
   opencti-network:
