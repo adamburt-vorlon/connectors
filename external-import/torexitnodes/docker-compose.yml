@@ -1,0 +1,44 @@
+services:
+  connector-torexitnodes:
+    image: torexitnodes:latest
+    environment:
+      # Connector's generic execution parameters
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_TOREXITNODES_TOKEN}
+      # Connector's definition parameters REQUIRED
+      - CONNECTOR_ID=261020aa-27ab-4f18-ac8c-f80baa3f133f
+      - CONNECTOR_NAME=TOR Exit Nodes
+      - CONNECTOR_SCOPE=ipv4-addr,ipv6-addr
+      - CONNECTOR_LOG_LEVEL=error
+      - CONNECTOR_DURATION_PERIOD=PT1H # ISO8601 format in String, start with 'P...' for Period
+      - OPENCTI_BROKER_HOST=${OPENCTI_HOSTNAME}
+      - OPENCTI_BROKER_PORT=5672
+      - OPENCTI_BROKER_USERNAME=${RABBITMQ_DEFAULT_USER}
+      - OPENCTI_BROKER_PASSWORD=${RABBITMQ_DEFAULT_PASS}
+      - TOR_BASE_URL=https://www.dan.me.uk/torlist/?exit
+      - TOR_BASE_API_KEY=''
+    networks:
+      - opencti-network
+
+      # Connector's definition parameters OPTIONAL
+      # - CONNECTOR_QUEUE_THRESHOLD=500 # Default 500Mo, Float accepted
+      # - CONNECTOR_RUN_AND_TERMINATE=False # Default False, True run connector once
+      # - CONNECTOR_SEND_TO_QUEUE=True # Default True
+      # - CONNECTOR_SEND_TO_DIRECTORY=False # Default False
+      # - CONNECTOR_SEND_TO_DIRECTORY_PATH=CHANGEME # if CONNECTOR_SEND_TO_DIRECTORY is True, you must specify a path
+      # - CONNECTOR_SEND_TO_DIRECTORY_RETENTION=7 # Default 7, in days
+
+      # Connector's custom execution parameters
+      # - CONNECTOR_TOREXITNODE_API_BASE_URL=$CONNECTOR_TOR_EXIT_NODE_API_BASE_URL
+
+      # Add proxy parameters below if needed
+      # - HTTP_PROXY=CHANGEME
+      # - HTTPS_PROXY=CHANGEME
+      # - NO_PROXY=CHANGEME
+    restart: always
+    # networks:
+    #   - docker_default
+
+networks:
+  opencti-network:
+    external: true
