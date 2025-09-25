@@ -62,16 +62,23 @@ class ConfigConnector:
             default="clear",
         )
         
-        self.uuid_namespace = get_config_variable(
-            "CONNECTOR_UUID_NAMESPACE",
-            ["connector_template", "uuid_namespace"],
+        self.mongo_conn_str = get_config_variable(
+            "MONGO_CONN_STR",
+            ["connector_template", "mongo_conn_str"],
             self.load,
             default="",
         )
         
-        self.create_groupings = get_config_variable(
-            "CREATE_GROUPINGS",
-            ["connector_template", "create_groupings"],
+        self.scope_namespace = get_config_variable(
+            "SCOPE_NAMESPACE",
+            ["connector_template", "scope_namespace"],
+            self.load,
+            default="",
+        )
+        
+        self.endpoint_namespace = get_config_variable(
+            "ENDPOINT_NAMESPACE",
+            ["connector_template", "endpoint_namespace"],
             self.load,
             default="",
         )
