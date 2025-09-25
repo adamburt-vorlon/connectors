@@ -85,7 +85,7 @@ class ConnectorMSInternalApps:
             for entity in entities:
                 return_list.append(entity.get('standard_id'))
             if has_more:
-                existing_indicators = self.helper.api.indicator.list(
+                existing_indicators = self.helper.api.stix_cyber_observable.list(
                     filters={
                         "mode": "and",
                         "filters":[
@@ -144,12 +144,14 @@ class ConnectorMSInternalApps:
             redirect_uris = sorted(app_data.get('redirect_uris', []))
             
             # Create main software observable
+            software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{vendor}:{app_id}")
             software = json.loads(Software(
+                id=f"software--{software_deterministic_uuid}",
                 name=app_name,
                 swid=app_id,
                 vendor=vendor
             ).serialize())
-            software["x_opencti_labels"] = [vendor, "application"]
+            software["x_opencti_labels"] = ["application", "verified", vendor]
             stix_objects.append(software)
             grouping_ids.append(software.get('id'))
             

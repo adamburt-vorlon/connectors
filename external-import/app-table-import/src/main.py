@@ -1,6 +1,6 @@
 import traceback
 
-from external_import_connector import ConnectorCatalogImport
+from external_import_connector import ConnectorAppTableImport
 from external_import_connector.config_loader import ConfigConnector
 from pycti import OpenCTIConnectorHelper
 
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         config = ConfigConnector()
         helper = OpenCTIConnectorHelper(config=config.load)
 
-        connector = ConnectorCatalogImport(config=config, helper=helper)
+        connector = ConnectorAppTableImport(config=config, helper=helper)
         connector.run()
     except Exception:
         traceback.print_exc()

@@ -62,23 +62,30 @@ class ConfigConnector:
             default="clear",
         )
         
-        self.mongo_conn_str = get_config_variable(
-            "MONGO_CONN_STR",
-            ["connector_template", "mongo_conn_str"],
+        self.pg_conn_string = get_config_variable(
+            "CONNECTOR_PG_CONN_STR",
+            ["connector_template", "pg_conn_str"],
             self.load,
             default="",
         )
         
-        self.scope_namespace = get_config_variable(
-            "SCOPE_NAMESPACE",
-            ["connector_template", "scope_namespace"],
+        self.uuid_namespace = get_config_variable(
+            "CONNECTOR_UUID_NAMESPACE",
+            ["connector_template", "uuid_namespace"],
             self.load,
-            default="",
+            default='',
         )
         
-        self.endpoint_namespace = get_config_variable(
-            "ENDPOINT_NAMESPACE",
-            ["connector_template", "endpoint_namespace"],
+        self.only_unassigned = get_config_variable(
+            "CONNECTOR_ONLY_UNASSIGNED",
+            ["connector_template", "only_unassigned"],
             self.load,
-            default="",
+            default=False,
+        )
+        
+        self.overwrite_existing = get_config_variable(
+            "CONNECTOR_OVERWRITE_EXISTING",
+            ["connector_template", "overwrite_existing"],
+            self.load,
+            default=False,
         )

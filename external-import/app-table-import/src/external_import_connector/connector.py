@@ -1,6 +1,8 @@
 import sys
 from datetime import datetime, timezone
 from external_import_connector.utils import *
+from stix2 import Software, Relationship
+import json
 import uuid
 
 from pycti import OpenCTIConnectorHelper
@@ -10,7 +12,7 @@ from .config_loader import ConfigConnector
 from .converter_to_stix import ConverterToStix
 
 
-class ConnectorCatalogImport:
+class ConnectorAppTableImport:
     """
     Specifications of the external import connector
 
@@ -56,6 +58,98 @@ class ConnectorCatalogImport:
         self.helper = helper
         self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper, self.config)
+    
+    def get_existing_apps(self) -> list:
+        return_list = []
+        existing_indicators = self.helper.api.stix_cyber_observable.list(
+            filters={
+                "mode": "and",
+                "filters":[
+                    {
+                        "key": "entity_type",
+                        "values": ["Software"]
+                    },
+                    {
+                        "key": "objectLabel",
+                        "values": ["application"]
+                    }
+                ],
+                "filterGroups":[]
+            },
+            withPagination=True
+        )
+        has_more = True
+        while has_more:
+            pagination = existing_indicators.get('pagination', {})
+            has_more = pagination.get('hasNextPage', False)
+            entities = existing_indicators.get('entities', [])
+            for entity in entities:
+                return_list.append(entity.get('standard_id'))
+            if has_more:
+                existing_indicators = self.helper.api.stix_cyber_observable.list(
+                    filters={
+                        "mode": "and",
+                        "filters":[
+                            {
+                                "key": "entity_type",
+                                "values": ["Software"]
+                            },
+                            {
+                                "key": "objectLabel",
+                                "values": ["application"]
+                            }
+                        ],
+                        "filterGroups":[]
+                    },
+                    withPagination=True,
+                    after=pagination.get('endCursor')
+                )
+        return return_list
+
+    def get_authors(self) -> dict:
+        return_list = {}
+        authors = self.helper.api.identity.list(
+            filters={
+                "mode": "and",
+                "filters":[
+                    {
+                        "key": "entity_type",
+                        "values": ["Organization"]
+                    }
+                ],
+                "filterGroups":[]
+            },
+            withPagination=True
+        )
+        has_more = True
+        while has_more:
+            pagination = authors.get('pagination', {})
+            has_more = pagination.get('hasNextPage', False)
+            entities = authors.get('entities', [])
+            for entity in entities:
+                name = entity.get('name')
+                standard_id = entity.get('standard_id')
+                if name and standard_id:
+                    return_list.update({
+                        name: standard_id
+                    })
+            if has_more:
+                authors = self.helper.api.identity.list(
+                    filters={
+                        "mode": "and",
+                        "filters":[
+                            {
+                                "key": "entity_type",
+                                "values": ["Organization"]
+                            }
+                        ],
+                        "filterGroups":[]
+                    },
+                    withPagination=True,
+                    after=pagination.get('endCursor')
+                )
+        return return_list
+        
 
     def _collect_intelligence(self) -> list:
         """
@@ -63,71 +157,63 @@ class ConnectorCatalogImport:
         :return: List of STIX objects
         """
         stix_objects = []
+        SCO_EXT = "extension-definition--f93e2c80-4231-4f9a-af8b-95c9bd566a82"  # OpenCTI SCO extension
+        
+        # Namespace to use
+        NAMESPACE = uuid.UUID(self.config.uuid_namespace)
 
         # ===========================
         # === Add your code below ===
         # ===========================
 
+        # Get authors
+        # authors = self.get_authors()
+        
         # Get entities from external sources
-        entities = self.client.get_entities(collect_scopes=True, collect_endpoints=False)
-
-        endpoints = entities.get('endpoints')
-        scopes = entities.get('scopes')
-        scopes_namespace = uuid.UUID(self.config.scope_namespace)
-        endpoints_namespace = uuid.UUID(self.config.endpoint_namespace)
+        entities = self.client.get_entities()
         
-        # Parse all scopes
-        for scope_data in scopes:
-            service_id = scope_data.get('service_id', '')
-            scope_id = scope_data.get('scope_id', '')
-            scope_name = scope_data.get('scope_name', '')
-            scope_description = scope_data.get('scope_description', '')
-            scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_name}:{service_id}".encode())
-            applicable_labels = ["scope", service_id]
-            access_sensitive = scope_data.get('access_sensitive', False)
-            admin_capabilities = scope_data.get('admin_capabilities', False)
-            access_pii = scope_data.get('access_pii', False)
-            is_read = scope_data.get('is_read', False)
-            is_write = scope_data.get('is_write', False)
-            
-            score = 0
-            if access_sensitive:
-                score += 10
-                applicable_labels.append("access_sensitive")
-            if admin_capabilities:
-                score += 45
-                applicable_labels.append("admin_capabilities")
-            if access_pii:
-                score += 20
-                applicable_labels.append("access_pii")
-            if is_read:
-                score += 5
-                applicable_labels.append("is_read")
-            if is_write:
-                score += 10
-                applicable_labels.append("is_write")
-            
-            # Create the scope observable
-            text_obj = {
-                "type": "Text",
-                "id": f"text--{scope_deterministic_uuid}",
-                "value": scope_name,
-                "description": scope_description,
-                "score": score,
-                "x_opencti_main_observable": True,
-                "x_opencti_author": service_id,
-                "labels": applicable_labels
-            }
-            stix_objects.append(text_obj)
+        # Get list of IDs of existing apps
+        if not self.config.overwrite_existing:
+            existing_ids = self.get_existing_apps()
+        else:
+            existing_ids = []
         
-        # Parse all endpoints
-        # for endpoint in endpoints:
-        #     service_id = endpoint.get('service', '')
-        #     path = endpoint.get('path', '')
-        #     method = endpoint.get('method', '')
-        #     regex = endpoint.get('regex', '')
-        #     summary = endpoint.get('summary', '')
-        #     description = endpoint.get('description', '')
+        # Process each entity
+        for entity in entities:
+            app_id = entity.get('app_id')
+            app_name = entity.get('app_name')
+            service_id = entity.get('service_id')
+            platform_id = entity.get('platform_id')
+            vendor_verified_raw = entity.get('vendor_verified')
+            if not vendor_verified_raw:
+                vendor_verified = False
+            else:
+                vendor_verified = True
+            date_created_raw = int(entity.get('date_created', 0) / 10)
+            software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{platform_id}:{app_id}")
+            software = json.loads(Software(
+                id=f"software--{software_deterministic_uuid}",
+                name=app_name,
+                swid=app_id
+            ).serialize())
+            software["x_opencti_labels"] = ["application", platform_id]
+            if software.get('id') in existing_ids and not self.config.overwrite_existing:
+                continue
+            if service_id:
+                software["vendor"] = service_id
+            if vendor_verified:
+                software["x_opencti_labels"].append("verified")
+            else:
+                software["x_opencti_labels"].append("unverified")
+            
+            # Reserved for when custom extensions are supported
+            # ext_body = {"extension_type": "property-extension"}
+            # ext_body["service_id"] = service_id if service_id else ''
+            # software['extensions']={SCO_EXT: ext_body}
+            if date_created_raw:
+                software['created'] = datetime.fromtimestamp(date_created_raw).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            stix_objects.append(software)
+        
 
         # ===========================
         # === Add your code above ===
@@ -169,7 +255,7 @@ class ConnectorCatalogImport:
                 )
 
             # Friendly name will be displayed on OpenCTI platform
-            friendly_name = "Connector template feed"
+            friendly_name = "App Table Data Import"
 
             # Initiate a new work
             work_id = self.helper.api.work.initiate_work(
@@ -188,11 +274,11 @@ class ConnectorCatalogImport:
             stix_objects = self._collect_intelligence()
 
             if len(stix_objects):
-                stix_objects_bundle = self.helper.stix2_create_bundle(stix_objects)
+                stix_objects_bundle = self.helper.stix2_create_bundle(stix_objects,)
                 bundles_sent = self.helper.send_stix2_bundle(
                     stix_objects_bundle,
                     work_id=work_id,
-                    cleanup_inconsistent_bundle=True,
+                    cleanup_inconsistent_bundle=True
                 )
 
                 self.helper.connector_logger.info(
