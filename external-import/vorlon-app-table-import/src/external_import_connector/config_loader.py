@@ -97,4 +97,5 @@ class ConfigConnector:
             self.load,
             default=0,
         )
+        self.last_run = int(self.last_run)
             

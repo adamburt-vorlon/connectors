@@ -1,19 +1,17 @@
 import sys
-import os
 from datetime import datetime, timezone
-from external_import_connector.utils import *
-from stix2 import Software, Relationship
-import json
+from stix2 import Software, Relationship, Grouping
 import uuid
+import json
 
-from pycti import OpenCTIConnectorHelper
+from pycti import OpenCTIConnectorHelper, CustomObservableText
 
 from .client_api import ConnectorClient
 from .config_loader import ConfigConnector
 from .converter_to_stix import ConverterToStix
 
 
-class ConnectorAppTableImport:
+class ConnectorMSInternalApps:
     """
     Specifications of the external import connector
 
@@ -60,7 +58,7 @@ class ConnectorAppTableImport:
         self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper, self.config)
     
-    def get_existing_apps(self) -> list:
+    def get_existing_scopes(self) -> list:
         return_list = []
         existing_indicators = self.helper.api.stix_cyber_observable.list(
             filters={
@@ -68,11 +66,11 @@ class ConnectorAppTableImport:
                 "filters":[
                     {
                         "key": "entity_type",
-                        "values": ["Software"]
+                        "values": ["Text"]
                     },
                     {
                         "key": "objectLabel",
-                        "values": ["application"]
+                        "values": ["scope"]
                     }
                 ],
                 "filterGroups":[]
@@ -93,11 +91,11 @@ class ConnectorAppTableImport:
                         "filters":[
                             {
                                 "key": "entity_type",
-                                "values": ["Software"]
+                                "values": ["Text"]
                             },
                             {
                                 "key": "objectLabel",
-                                "values": ["application"]
+                                "values": ["scope"]
                             }
                         ],
                         "filterGroups":[]
@@ -106,66 +104,6 @@ class ConnectorAppTableImport:
                     after=pagination.get('endCursor')
                 )
         return return_list
-
-    def get_authors(self) -> dict:
-        return_list = {}
-        authors = self.helper.api.identity.list(
-            filters={
-                "mode": "and",
-                "filters":[
-                    {
-                        "key": "entity_type",
-                        "values": ["Organization"]
-                    }
-                ],
-                "filterGroups":[]
-            },
-            withPagination=True
-        )
-        has_more = True
-        while has_more:
-            pagination = authors.get('pagination', {})
-            has_more = pagination.get('hasNextPage', False)
-            entities = authors.get('entities', [])
-            for entity in entities:
-                name = entity.get('name')
-                standard_id = entity.get('standard_id')
-                if name and standard_id:
-                    return_list.update({
-                        name: standard_id
-                    })
-            if has_more:
-                authors = self.helper.api.identity.list(
-                    filters={
-                        "mode": "and",
-                        "filters":[
-                            {
-                                "key": "entity_type",
-                                "values": ["Organization"]
-                            }
-                        ],
-                        "filterGroups":[]
-                    },
-                    withPagination=True,
-                    after=pagination.get('endCursor')
-                )
-        return return_list
-
-    def get_last_run(self):
-        if os.path.exists("/data/last_run.txt"):
-            with open("/data/last_run.txt", "r") as fp:
-                last_run_data = fp.read()
-                try:
-                    last_run = int(last_run_data)
-                    self.config.last_run = last_run
-                except:
-                    pass
-        self.helper.connector_logger.info(f"Last run is: {self.config.last_run}")
-    
-    def set_last_run(self):
-        with open("/data/last_run.txt", "w") as pf:
-            pf.write(str(self.config.last_run))
-        self.helper.connector_logger.info(f"Setting last run to: {self.config.last_run}")
 
     def _collect_intelligence(self) -> list:
         """
@@ -173,75 +111,139 @@ class ConnectorAppTableImport:
         :return: List of STIX objects
         """
         stix_objects = []
-        SCO_EXT = "extension-definition--f93e2c80-4231-4f9a-af8b-95c9bd566a82"  # OpenCTI SCO extension
-        
-        # Namespace to use
-        NAMESPACE = uuid.UUID(self.config.uuid_namespace)
 
         # ===========================
         # === Add your code below ===
         # ===========================
-
-        # Get authors
-        # authors = self.get_authors()
         
-        # Retrive the last entry or set it to the value in the .env file
-        self.get_last_run()
+        # Namespace to use
+        NAMESPACE = uuid.UUID(self.config.uuid_namespace)
+        
+        # Vendor to use
+        vendor = "microsoft365"
+        
+        # Whether to create groupings
+        if isinstance(self.config.create_groupings, bool):
+            create_groupings = self.config.create_groupings
+        else:
+            create_groupings = True if self.config.create_groupings == 'true' else False
+        
+        # Log all scopes to prevent creating multiple times
+        global_scopes = []#self.get_existing_scopes()
+        global_redirect_uris = []
+        
         
         # Get entities from external sources
-        entities = self.client.get_entities()
-        
-        # Get list of IDs of existing apps
-        if not self.config.overwrite_existing:
-            existing_ids = self.get_existing_apps()
-        else:
-            existing_ids = []
-        
-        # Process each entity
-        if entities:
-            for entity in entities:
-                app_id = entity.get('app_id')
-                app_name = entity.get('app_name')
-                service_id = entity.get('service_id')
-                platform_id = entity.get('platform_id')
-                vendor_verified_raw = entity.get('vendor_verified')
-                if not vendor_verified_raw:
-                    vendor_verified = False
+        entities: dict = self.client.get_entities()
+        apps = entities.get('apps', {})
+        rids = entities.get('resourceidentifiers', {})
+
+        for app_id, app_data in apps.items():
+            grouping_ids = []
+            app_name = app_data.get('name')
+            redirect_uris = sorted(app_data.get('redirect_uris', []))
+            
+            # Create main software observable
+            software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{vendor}:{app_id}")
+            software = json.loads(Software(
+                id=f"software--{software_deterministic_uuid}",
+                name=app_name,
+                swid=app_id,
+                vendor=vendor
+            ).serialize())
+            software["x_opencti_labels"] = ["application", "verified", vendor]
+            stix_objects.append(software)
+            grouping_ids.append(software.get('id'))
+            
+            # Create observables for the redirect URIs
+            for uri in redirect_uris:
+                url_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{uri}:{vendor}")
+                if url_deterministic_uuid not in global_redirect_uris:
+                    url = {
+                        "type": "url",
+                        "id": f"url--{url_deterministic_uuid}",
+                        "value": uri,
+                        "x_opencti_main_observable": True,
+                        "x_opencti_author": "microsoft365",
+                        "x_opencti_labels": ["redirect", vendor]
+                    }
+                    stix_objects.append(url)
+                    global_redirect_uris.append(url_deterministic_uuid)
                 else:
-                    vendor_verified = True
-                date_created_raw = entity.get('date_created', 0)
-                if date_created_raw > self.config.last_run:
-                    self.config.last_run = date_created_raw
-                date_created_raw = int(date_created_raw / 10)
-                software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{platform_id}:{app_id}")
-                software = json.loads(Software(
-                    id=f"software--{software_deterministic_uuid}",
+                    url = {
+                        "id": f"url--{url_deterministic_uuid}"
+                    }
+                
+                # Create the relationship
+                url_relationship = Relationship(
+                    source_ref=url.get('id'),
+                    relationship_type="related-to",
+                    target_ref=software.get('id')
+                )
+                grouping_ids.append(url_relationship)
+                stix_objects.append(url_relationship)
+            
+            # Aggregate all scopes
+            scopes = []
+            for scope_dest, scope_data in app_data.get('scopes', {}).items():
+                if scope_data and isinstance(scope_data, list):
+                    for scope_item in scope_data:
+                        if scope_item not in scopes:
+                            scopes.append(scope_item)
+            scopes = sorted(scopes)
+            
+            for scope in scopes:
+                
+                scope_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{scope}:{vendor}")
+                if scope_deterministic_uuid not in global_scopes:
+                    
+                    # Create the scope observable if it does not exist
+                    scope_obj = {
+                        "type": "Text",
+                        "id": f"text--{scope_deterministic_uuid}",
+                        "value": scope,
+                        "x_opencti_main_observable": True,
+                        "x_opencti_author": vendor,
+                        "labels": ["scope", vendor]
+                    }
+                    stix_objects.append(scope_obj)
+                    global_scopes.append(scope_deterministic_uuid)
+                else:
+                    scope_obj = {
+                        "id": f"text--{scope_deterministic_uuid}"
+                    }
+                grouping_ids.append(scope_obj.get('id'))
+                
+                # Create the relationship
+                scope_relationship = Relationship(
+                    source_ref=scope_obj.get('id'),
+                    relationship_type="related-to",
+                    target_ref=software.get('id')
+                )
+                grouping_ids.append(scope_relationship)
+                stix_objects.append(scope_relationship)
+
+            # Create grouping if enabled
+            if create_groupings:
+                group_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{app_name}:{vendor}")
+                    
+                # Create the scope observable if it does not exist
+                group_obj = Grouping(
+                    id=f"grouping--{group_deterministic_uuid}",
                     name=app_name,
-                    swid=app_id
-                ).serialize())
-                software["x_opencti_labels"] = ["application", platform_id]
-                if software.get('id') in existing_ids and not self.config.overwrite_existing:
-                    continue
-                if service_id:
-                    software["vendor"] = service_id
-                if vendor_verified:
-                    software["x_opencti_labels"].append("verified")
-                else:
-                    software["x_opencti_labels"].append("unverified")
+                    context='unspecified',
+                    object_refs=grouping_ids,
+                    labels=["application", vendor]
+                )
+                stix_objects.append(group_obj)
                 
-                # Reserved for when custom extensions are supported
-                # ext_body = {"extension_type": "property-extension"}
-                # ext_body["service_id"] = service_id if service_id else ''
-                # software['extensions']={SCO_EXT: ext_body}
-                if date_created_raw:
-                    software['created'] = datetime.fromtimestamp(date_created_raw).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                stix_objects.append(software)
-                
-                break
-        
-        # Store the last entry
-        self.set_last_run()
-        
+                # Create a relationship that relates the grouping to the software item
+                gr = Relationship(
+                    source_ref=software.get('id'),
+                    relationship_type="related-to",
+                    target_ref=group_obj.id
+                )
+                stix_objects.append(gr)
 
         # ===========================
         # === Add your code above ===
@@ -283,7 +285,7 @@ class ConnectorAppTableImport:
                 )
 
             # Friendly name will be displayed on OpenCTI platform
-            friendly_name = "App Table Data Import"
+            friendly_name = "Microsoft Internal Applications"
 
             # Initiate a new work
             work_id = self.helper.api.work.initiate_work(
@@ -302,11 +304,11 @@ class ConnectorAppTableImport:
             stix_objects = self._collect_intelligence()
 
             if len(stix_objects):
-                stix_objects_bundle = self.helper.stix2_create_bundle(stix_objects,)
+                stix_objects_bundle = self.helper.stix2_create_bundle(stix_objects)
                 bundles_sent = self.helper.send_stix2_bundle(
                     stix_objects_bundle,
                     work_id=work_id,
-                    cleanup_inconsistent_bundle=True
+                    cleanup_inconsistent_bundle=True,
                 )
 
                 self.helper.connector_logger.info(
