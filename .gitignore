@@ -25,3 +25,4 @@ pyvenv.cfg
 /external-import/import-app-table-data/src/env
 /external-import/import-catalog-data/src/env
 /external-import/app-table-import/src/env
+external-import/app-table-import/data/last_run.txt
