@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import json
 
 import yaml
 from pycti import get_config_variable
@@ -89,3 +90,11 @@ class ConfigConnector:
             self.load,
             default=False,
         )
+        
+        self.last_run = get_config_variable(
+            "CONNECTOR_INITIAL_LAST_RUN",
+            ["connector_template", "initial_last_run"],
+            self.load,
+            default=0,
+        )
+            

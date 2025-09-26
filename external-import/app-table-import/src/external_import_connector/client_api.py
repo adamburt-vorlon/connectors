@@ -45,9 +45,9 @@ class ConnectorClient:
             
             pg = postgres_connect(self.config.pg_conn_string)
             cursor = pg.cursor()
-            query = "SELECT * FROM app_service"
+            query = f"SELECT * FROM app_service WHERE date_created > {self.config.last_run}"
             if self.config.only_unassigned:
-                query = f"{query} WHERE service_id = '' OR service_id is null"
+                query = f"{query} AND service_id = '' OR service_id is null"
             cursor.execute(query)
             
             all_data = cursor.fetchall()
