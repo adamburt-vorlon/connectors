@@ -68,14 +68,6 @@ class ConnectorAppTableStream:
         vendor = data.get('vendor','')
         pg = postgres_connect(self.config.pg_conn_str)
         cursor = pg.cursor()
-        
-        # Check if the app already exists
-        query = f"SELECT Id FROM app_service WHERE app_id = '{swid}' AND app_name = '{name}'"
-        cursor.execute(query)
-        results = cursor.fetchall()
-        if results:
-            return
-        
         # Get labels and created date
         extensions = data.get('extensions', {})
         extension_core = extensions.get('extension-definition--ea279b3e-5c71-4632-ac08-831c66a786ba', {})
@@ -96,6 +88,19 @@ class ConnectorAppTableStream:
             label = labels[0]
         else:
             label = ''
+
+        # Check if the app already exists
+        query = f"SELECT Id FROM app_service WHERE app_id = '{swid}'"
+        if label:
+            query = f"{query} AND platform_id = '{label}'"
+        try:
+            cursor.execute(query)
+            results = cursor.fetchall()
+        except:
+            return
+        if results:
+            return
+        
         try:
             create_query = f"INSERT INTO app_service (app_id, platform_id, app_name, service_id, date_created, vendor_verified, ignore) VALUES ('{swid}', '{label}', '{name}', '{vendor}', {date_created_int}, {verified}, False);"
             cursor.execute(create_query)
@@ -105,9 +110,9 @@ class ConnectorAppTableStream:
         pg.close()
     
     def update_app(self, event_type: str, data: dict):
-        swid = data.get('data',{}).get('swid','')
-        name = data.get('data',{}).get('name','')
-        vendor = data.get('data',{}).get('vendor','')
+        swid = data.get('swid','')
+        name = data.get('name','')
+        vendor = data.get('vendor','')
         pg = postgres_connect(self.config.pg_conn_str)
         cursor = pg.cursor()
         if event_type == "change_vendor":
@@ -124,8 +129,8 @@ class ConnectorAppTableStream:
         pg.close()
     
     def delete_app(self, data: dict):
-        swid = data.get('data',{}).get('swid','')
-        name = data.get('data',{}).get('name','')
+        swid = data.get('swid','')
+        name = data.get('name','')
         
         pg = postgres_connect(self.config.pg_conn_str)
         cursor = pg.cursor()
@@ -174,12 +179,12 @@ class ConnectorAppTableStream:
                     event_type = event
                     break
             if event_type:
-                self.update_app(event_type, data)
+                self.update_app(event_type, data.get('data', {}))
                 self.helper.connector_logger.info("[UPDATE]")
 
         # Handle delete
         if msg.event == "delete":
-            self.delete_app(data)
+            self.delete_app(data.get('data', {}))
             self.helper.connector_logger.info("[DELETE]")
 
         # ===========================
