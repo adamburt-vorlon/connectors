@@ -1,4 +1,5 @@
 import sys
+import os
 from datetime import datetime, timezone
 from external_import_connector.utils import *
 from stix2 import Software, Relationship
@@ -149,7 +150,22 @@ class ConnectorAppTableImport:
                     after=pagination.get('endCursor')
                 )
         return return_list
-        
+
+    def get_last_run(self):
+        if os.path.exists("/data/last_run.txt"):
+            with open("/data/last_run.txt", "r") as fp:
+                last_run_data = fp.read()
+                try:
+                    last_run = int(last_run_data)
+                    self.config.last_run = last_run
+                except:
+                    pass
+        self.helper.connector_logger.info(f"Last run is: {self.config.last_run}")
+    
+    def set_last_run(self):
+        with open("/data/last_run.txt", "w") as pf:
+            pf.write(str(self.config.last_run))
+        self.helper.connector_logger.info(f"Setting last run to: {self.config.last_run}")
 
     def _collect_intelligence(self) -> list:
         """
@@ -169,6 +185,9 @@ class ConnectorAppTableImport:
         # Get authors
         # authors = self.get_authors()
         
+        # Retrive the last entry or set it to the value in the .env file
+        self.get_last_run()
+        
         # Get entities from external sources
         entities = self.client.get_entities()
         
@@ -179,40 +198,49 @@ class ConnectorAppTableImport:
             existing_ids = []
         
         # Process each entity
-        for entity in entities:
-            app_id = entity.get('app_id')
-            app_name = entity.get('app_name')
-            service_id = entity.get('service_id')
-            platform_id = entity.get('platform_id')
-            vendor_verified_raw = entity.get('vendor_verified')
-            if not vendor_verified_raw:
-                vendor_verified = False
-            else:
-                vendor_verified = True
-            date_created_raw = int(entity.get('date_created', 0) / 10)
-            software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{platform_id}:{app_id}")
-            software = json.loads(Software(
-                id=f"software--{software_deterministic_uuid}",
-                name=app_name,
-                swid=app_id
-            ).serialize())
-            software["x_opencti_labels"] = ["application", platform_id]
-            if software.get('id') in existing_ids and not self.config.overwrite_existing:
-                continue
-            if service_id:
-                software["vendor"] = service_id
-            if vendor_verified:
-                software["x_opencti_labels"].append("verified")
-            else:
-                software["x_opencti_labels"].append("unverified")
-            
-            # Reserved for when custom extensions are supported
-            # ext_body = {"extension_type": "property-extension"}
-            # ext_body["service_id"] = service_id if service_id else ''
-            # software['extensions']={SCO_EXT: ext_body}
-            if date_created_raw:
-                software['created'] = datetime.fromtimestamp(date_created_raw).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            stix_objects.append(software)
+        if entities:
+            for entity in entities:
+                app_id = entity.get('app_id')
+                app_name = entity.get('app_name')
+                service_id = entity.get('service_id')
+                platform_id = entity.get('platform_id')
+                vendor_verified_raw = entity.get('vendor_verified')
+                if not vendor_verified_raw:
+                    vendor_verified = False
+                else:
+                    vendor_verified = True
+                date_created_raw = entity.get('date_created', 0)
+                if date_created_raw > self.config.last_run:
+                    self.config.last_run = date_created_raw
+                date_created_raw = int(date_created_raw / 10)
+                software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{platform_id}:{app_id}")
+                software = json.loads(Software(
+                    id=f"software--{software_deterministic_uuid}",
+                    name=app_name,
+                    swid=app_id
+                ).serialize())
+                software["x_opencti_labels"] = ["application", platform_id]
+                if software.get('id') in existing_ids and not self.config.overwrite_existing:
+                    continue
+                if service_id:
+                    software["vendor"] = service_id
+                if vendor_verified:
+                    software["x_opencti_labels"].append("verified")
+                else:
+                    software["x_opencti_labels"].append("unverified")
+                
+                # Reserved for when custom extensions are supported
+                # ext_body = {"extension_type": "property-extension"}
+                # ext_body["service_id"] = service_id if service_id else ''
+                # software['extensions']={SCO_EXT: ext_body}
+                if date_created_raw:
+                    software['created'] = datetime.fromtimestamp(date_created_raw).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                stix_objects.append(software)
+                
+                break
+        
+        # Store the last entry
+        self.set_last_run()
         
 
         # ===========================

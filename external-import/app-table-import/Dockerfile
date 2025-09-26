@@ -13,6 +13,8 @@ RUN cd /opt/opencti-connector-template && \
     pip3 install --no-cache-dir -r requirements.txt && \
     apk del git build-base
 
+RUN mkdir /data
+
 # Expose and entrypoint
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh

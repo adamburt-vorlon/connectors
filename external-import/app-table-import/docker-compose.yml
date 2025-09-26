@@ -16,6 +16,9 @@ services:
       - CONNECTOR_PG_CONN_STR=${CONNECTOR_PG_CONN_STR}
       - CONNECTOR_ONLY_UNASSIGNED=${CONNECTOR_ONLY_UNASSIGNED}
       - CONNECTOR_OVERWRITE_EXISTING=${CONNECTOR_OVERWRITE_EXISTING}
+      - CONNECTOR_INITIAL_LAST_RUN=${CONNECTOR_INITIAL_LAST_RUN}
+    volumes:
+      - ./data:/data
     restart: always
     networks:
       - opencti-network
