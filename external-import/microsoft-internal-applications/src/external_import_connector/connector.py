@@ -198,7 +198,7 @@ class ConnectorMSInternalApps:
                 if scope_deterministic_uuid not in global_scopes:
                     
                     # Create the scope observable if it does not exist
-                    text_obj = {
+                    scope_obj = {
                         "type": "Text",
                         "id": f"text--{scope_deterministic_uuid}",
                         "value": scope,
@@ -206,17 +206,17 @@ class ConnectorMSInternalApps:
                         "x_opencti_author": vendor,
                         "labels": ["scope", vendor]
                     }
-                    stix_objects.append(text_obj)
+                    stix_objects.append(scope_obj)
                     global_scopes.append(scope_deterministic_uuid)
                 else:
-                    text_obj = {
+                    scope_obj = {
                         "id": f"text--{scope_deterministic_uuid}"
                     }
-                grouping_ids.append(text_obj.get('id'))
+                grouping_ids.append(scope_obj.get('id'))
                 
                 # Create the relationship
                 scope_relationship = Relationship(
-                    source_ref=text_obj.get('id'),
+                    source_ref=scope_obj.get('id'),
                     relationship_type="related-to",
                     target_ref=software.get('id')
                 )
@@ -235,8 +235,15 @@ class ConnectorMSInternalApps:
                     object_refs=grouping_ids,
                     labels=["application", vendor]
                 )
-                
                 stix_objects.append(group_obj)
+                
+                # Create a relationship that relates the grouping to the software item
+                gr = Relationship(
+                    source_ref=software.get('id'),
+                    relationship_type="related-to",
+                    target_ref=software.group_obj.id
+                )
+                stix_objects.append(gr)
 
         # ===========================
         # === Add your code above ===
