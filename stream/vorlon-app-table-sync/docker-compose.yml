@@ -1,6 +1,6 @@
 services:
   connector-app-table-stream:
-    image: apptablestream:latest
+    image: apptablesync:latest
     environment:
       - OPENCTI_URL=${OPENCTI_BASE_URL}
       - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}

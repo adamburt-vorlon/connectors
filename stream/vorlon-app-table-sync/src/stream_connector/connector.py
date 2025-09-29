@@ -91,9 +91,11 @@ class ConnectorAppTableStream:
         swid = data.get('swid','')
         name = data.get('name','')
         vendor = data.get('vendor','')
+        obs_id = data.get('id')
         if self.service_is_valid(vendor):
             pg = postgres_connect(self.config.pg_conn_str)
             cursor = pg.cursor()
+            self.helper.api.stix_cyber_observable.add_label()
             
             # Get labels and created date
             extensions = data.get('extensions', {})
@@ -136,15 +138,27 @@ class ConnectorAppTableStream:
                 pg.rollback()
             pg.close()
         else:
-            self.helper.connector_logger.warning(f"Invalid service ID '{vendor}', not updating")
+            self.helper.connector_logger.warning(f"Invalid service ID '{vendor}', removing entry")
+            self.helper.api.stix_cyber_observable.delete(id=obs_id)
     
     def update_app(self, event_type: str, data: dict):
         swid = data.get('swid','')
         name = data.get('name','')
         vendor = data.get('vendor','')
+        obs_id = data.get('id')
         pg = postgres_connect(self.config.pg_conn_str)
         cursor = pg.cursor()
         if event_type == "change_vendor":
+            if not self.service_is_valid(vendor):
+                self.helper.api.stix_cyber_observable.add_label(
+                    id=obs_id,
+                    label_name="invalid_vendor"
+                )
+            else:
+                self.helper.api.stix_cyber_observable.remove_label(
+                    id=obs_id,
+                    label_name="invalid_vendor"
+                )
             query = f"UPDATE app_service SET service_id = '{vendor}' WHERE app_id = '{swid}' AND app_name = '{name}';"
         elif event_type == "add_verified_label":
             query = f"UPDATE app_service SET vendor_verified = true WHERE app_id = '{swid}' AND app_name = '{name}';"
