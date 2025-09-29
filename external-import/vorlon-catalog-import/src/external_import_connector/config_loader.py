@@ -90,5 +90,30 @@ class ConfigConnector:
             default="",
         )
         
+        self.collect_services = get_config_variable(
+            "COLLECT_SERVICES",
+            ["connector_template", "collect_services"],
+            self.load,
+            default=True,
+        )
         
+        self.include_hidden_services = get_config_variable(
+            "INCLUDE_HIDDEN_SERVICES",
+            ["connector_template", "include_hidden_services"],
+            self.load,
+            default="",
+        )
         
+        self.collect_endpoints = get_config_variable(
+            "COLLECT_ENDPOINTS",
+            ["connector_template", "collect_endpoints"],
+            self.load,
+            default=True,
+        )
+        
+        self.collect_scopes = get_config_variable(
+            "COLLECT_SCOPES",
+            ["connector_template", "collect_scopes"],
+            self.load,
+            default=True,
+        )

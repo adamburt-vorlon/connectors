@@ -37,14 +37,21 @@ class ConnectorClient:
             )
             return None
 
-    def get_entities(self, mongo: MongoClient) -> list:
+    def get_entities(self, mongo: MongoClient, include_hidden: bool) -> list:
         """
         Return all services
         """
         all_services = []
         try:
             services = mongo.service
-            all_services = services.find({})
+            filter = {}
+            if include_hidden:
+                filter = {}
+            else:
+                filter = {
+                    "hidden": False
+                }
+            all_services = services.find(filter)
 
         except Exception as err:
             self.helper.connector_logger.error(err)
