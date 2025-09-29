@@ -26,15 +26,15 @@ class ConverterToStix:
         :return: Author in Stix2 object
         """
         author = stix2.Identity(
-            id=Identity.generate_id(name="Source Name", identity_class="organization"),
-            name="Source Name",
+            id=Identity.generate_id(name="dirkjanm", identity_class="organization"),
+            name="Drikjanm",
             identity_class="organization",
-            description="DESCRIPTION",
+            description="",
             external_references=[
                 stix2.ExternalReference(
                     source_name="External Source",
-                    url="CHANGEME",
-                    description="DESCRIPTION",
+                    url="https://github.com/dirkjanm/ROADtools/tree/master/roadtx/roadtools/roadtx",
+                    description="",
                 )
             ],
         )
