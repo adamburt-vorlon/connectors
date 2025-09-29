@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime, timezone
 from external_import_connector.utils import *
-from stix2 import Grouping
+from stix2 import Relationship
 import uuid
 
 from pycti import OpenCTIConnectorHelper
@@ -70,7 +70,11 @@ class ConnectorCatalogImport:
         # ===========================
 
         # Get entities from external sources
-        services = self.client.get_entities(collect_services=self.config.collect_services, collect_scopes=self.config.collect_endpoints, collect_endpoints=self.config.collect_scopes)
+        mongo: MongoClient = mongodb_connect(self.config.mongo_conn_str)
+        services = self.client.get_entities(mongo)
+        catalog = mongo.catalog
+        mongo_endpoints = catalog.endpoints
+        mongo_scopes = catalog.scopes
 
         service_namespace = uuid.UUID(self.config.service_namespace)
         endpoints_namespace = uuid.UUID(self.config.endpoint_namespace)
@@ -104,15 +108,12 @@ class ConnectorCatalogImport:
             this_group = {
                 "type": "Grouping",
                 "id": f"grouping--{service_deterministic_uuid}",
-                
+                "object_refs": [f"software--{service_deterministic_uuid}"]
             }
-            g = Grouping()
             
-        
-        # Parse all endpoints
-        if self.config.collect_endpoints:
-            for endpoint in endpoints:
-                service_id = endpoint.get('service', '')
+            # Collect the endpoints
+            service_endpoints = mongo_endpoints.find({"service": service_id})
+            for endpoint in service_endpoints:
                 path = endpoint.get('path', '')
                 method = endpoint.get('method', '')
                 endpoint_deterministic_uuid = uuid.uuid5(endpoints_namespace, f"{service_id}{path}{method}")
@@ -122,30 +123,36 @@ class ConnectorCatalogImport:
                 endpoint_obj = {
                     "type": "Directory",
                     "id": f"directory--{endpoint_deterministic_uuid}",
-                    "value": path,
+                    "path": path,
+                    "path_enc": method,
                     "description": description,
                     "x_opencti_main_observable": True
                 }
                 stix_objects.append(endpoint_obj)
                 
-                # Create grouping
-                if self.config.create_groupings:
-                    if service_id in groupings:
-                        these_groupings = groupings[service_id].get('object_refs', [])
-                        if f"directory--{endpoint_deterministic_uuid}" not in these_groupings:
-                            these_groupings.append(f"directory--{endpoint_deterministic_uuid}")
+                # Create the relationship to the service
+                er = Relationship(
+                    source_ref=f"software--{service_deterministic_uuid}",
+                    target_ref=f"directory--{endpoint_deterministic_uuid}",
+                    relationship_type="related-to"
+                )
                 
-                service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
-                service_uuid = f"software--{service_deterministic_uuid}"
-        
-        # Parse all scopes
-        if self.config.collect_scopes:
-            for scope_data in scopes:
-                service_id = scope_data.get('service_id', '')
+                # Check if there are applicapble scopes and create relationships where possible
+                
+                
+                stix_objects.append(er)
+                
+                # Add to the grouping if required
+                if self.config.create_groupings:
+                    this_group['object_refs'].append(f"directory--{endpoint_deterministic_uuid}")
+                
+            # Collect all scopes for the service
+            all_scopes = mongo_scopes.find({"service_id": service_id})
+            for scope in all_scopes:
                 scope_id = scope_data.get('scope_id', '')
                 scope_name = scope_data.get('scope_name', '')
                 scope_description = scope_data.get('scope_description', '')
-                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_name}:{service_id}".encode())
+                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_id}:{service_id}".encode())
                 applicable_labels = ["scope", service_id]
                 access_sensitive = scope_data.get('access_sensitive', False)
                 admin_capabilities = scope_data.get('admin_capabilities', False)
@@ -182,8 +189,18 @@ class ConnectorCatalogImport:
                     "labels": applicable_labels
                 }
                 stix_objects.append(scope_obj)
-        
-        
+                
+                # Create the relationship
+                sr = Relationship(
+                    source_ref=f"software--{service_deterministic_uuid}",
+                    target_ref=f"text--{scope_deterministic_uuid}",
+                    relationship_type="related-to"
+                )
+                stix_objects.append(sr)
+                
+                # Append to group if applicable
+                if self.config.create_groupings:
+                    this_group['object_refs'].append(f"text--{scope_deterministic_uuid}")
 
         # ===========================
         # === Add your code above ===
