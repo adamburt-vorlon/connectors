@@ -15,6 +15,7 @@ services:
       - MONGO_CONN_STR=${MONGO_CONN_STR}
       - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
       - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
+      - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
     networks:
       - opencti-network
 

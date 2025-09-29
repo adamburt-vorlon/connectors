@@ -4,6 +4,7 @@ import re
 from stix2 import parse_observable, Software
 from datetime import datetime
 import pytz
+import uuid
 
 from pycti import OpenCTIConnectorHelper
 
@@ -61,53 +62,81 @@ class ConnectorAppTableStream:
             or self.helper.connect_live_stream_id == "ChangeMe"
         ):
             raise ValueError("Missing stream ID, please check your configurations.")
+    
+    def service_is_valid(self, service_id: str) -> bool:
+        ret_val = False
+        if service_id == '':
+            return True
+        service_uuid = uuid.uuid5(self.config.service_namespace, service_id)
+        id = f"software--{service_uuid}"
+        matches = self.helper.api.stix_cyber_observable.list(
+            filters={
+                "mode": "and",
+                "filters":[
+                    {
+                        "key": "id",
+                        "values": [id]
+                    }
+                ],
+                "filterGroups":[]
+            },
+        )
+        if matches:
+            ret_val = True
+        else:
+            ret_val = False
+        return ret_val
 
     def create_app(self, data: dict):
         swid = data.get('swid','')
         name = data.get('name','')
         vendor = data.get('vendor','')
-        pg = postgres_connect(self.config.pg_conn_str)
-        cursor = pg.cursor()
-        # Get labels and created date
-        extensions = data.get('extensions', {})
-        extension_core = extensions.get('extension-definition--ea279b3e-5c71-4632-ac08-831c66a786ba', {})
-        created_at = extension_core.get('created_at', '')
-        if created_at:
-            date_created = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%fZ")
-            date_created_int = int(date_created.timestamp() * 10)
-        else:
-            date_created_int = int(datetime.now(pytz.UTC).timestamp() * 10)
-        extension_labels = extensions.get('extension-definition--f93e2c80-4231-4f9a-af8b-95c9bd566a82', {})
-        labels = extension_labels.get('labels')
-        if "verified" in labels:
-            verified = True
-        else:
-            verified = False
-        labels[:] = [x for x in labels if x not in ['application', 'verified']]
-        if len(labels) == 1:
-            label = labels[0]
-        else:
-            label = ''
+        if self.service_is_valid(vendor):
+            pg = postgres_connect(self.config.pg_conn_str)
+            cursor = pg.cursor()
+            
+            # Get labels and created date
+            extensions = data.get('extensions', {})
+            extension_core = extensions.get('extension-definition--ea279b3e-5c71-4632-ac08-831c66a786ba', {})
+            created_at = extension_core.get('created_at', '')
+            if created_at:
+                date_created = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+                date_created_int = int(date_created.timestamp() * 10)
+            else:
+                date_created_int = int(datetime.now(pytz.UTC).timestamp() * 10)
+            extension_labels = extensions.get('extension-definition--f93e2c80-4231-4f9a-af8b-95c9bd566a82', {})
+            labels = extension_labels.get('labels')
+            if "verified" in labels:
+                verified = True
+            else:
+                verified = False
+            labels[:] = [x for x in labels if x not in ['application', 'verified']]
+            if len(labels) == 1:
+                label = labels[0]
+            else:
+                label = ''
 
-        # Check if the app already exists
-        query = f"SELECT Id FROM app_service WHERE app_id = '{swid}'"
-        if label:
-            query = f"{query} AND platform_id = '{label}'"
-        try:
-            cursor.execute(query)
-            results = cursor.fetchall()
-        except:
-            return
-        if results:
-            return
-        
-        try:
-            create_query = f"INSERT INTO app_service (app_id, platform_id, app_name, service_id, date_created, vendor_verified, ignore) VALUES ('{swid}', '{label}', '{name}', '{vendor}', {date_created_int}, {verified}, False);"
-            cursor.execute(create_query)
-            pg.commit()
-        except:
-            pg.rollback()
-        pg.close()
+            # Check if the app already exists
+            query = f"SELECT Id FROM app_service WHERE app_id = '{swid}'"
+            if label:
+                query = f"{query} AND platform_id = '{label}'"
+            try:
+                cursor.execute(query)
+                results = cursor.fetchall()
+            except:
+                return
+            if results:
+                return
+            
+            try:
+                create_query = f"INSERT INTO app_service (app_id, platform_id, app_name, service_id, date_created, vendor_verified, ignore) VALUES ('{swid}', '{label}', '{name}', '{vendor}', {date_created_int}, {verified}, False);"
+                cursor.execute(create_query)
+                pg.commit()
+            except:
+                pg.rollback()
+            pg.close()
+        else:
+            self.helper.connector_logger.warning(f"Invalid service ID '{vendor}', not updating")
     
     def update_app(self, event_type: str, data: dict):
         swid = data.get('swid','')
@@ -131,7 +160,6 @@ class ConnectorAppTableStream:
     def delete_app(self, data: dict):
         swid = data.get('swid','')
         name = data.get('name','')
-        
         pg = postgres_connect(self.config.pg_conn_str)
         cursor = pg.cursor()
         query = f"DELETE FROM app_service WHERE app_id = '{swid}' AND app_name = '{name}'"

@@ -26,4 +26,4 @@ pyvenv.cfg
 /external-import/vorlon-catalog-import/src/env
 /external-import/vorlon-app-table-import/src/env
 external-import/vorlon-app-table-import/data/last_run.txt
-/stream/vorlon-app-table-stream/src/env
+/stream/vorlon-app-table-sync/src/env

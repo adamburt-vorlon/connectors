@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import uuid
 
 import yaml
 from pycti import get_config_variable
@@ -43,3 +44,11 @@ class ConfigConnector:
             ["connector_template", "pg_conn_str"],
             self.load,
         )
+        
+        self.service_namespace = get_config_variable(
+            "SERVICE_NAMESPACE",
+            ["connector_template", "service_namespace"],
+            self.load
+        )
+        
+        self.service_namespace = uuid.UUID(self.service_namespace)
