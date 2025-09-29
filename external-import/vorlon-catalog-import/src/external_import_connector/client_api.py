@@ -43,9 +43,8 @@ class ConnectorClient:
         """
         all_services = []
         try:
-            catalog = mongo.catalog
-            services = catalog.service
-            all_services = services.find({"properties.observable": True})
+            services = mongo.service
+            all_services = services.find({"_id": "crowdstrikefalcon"})
 
         except Exception as err:
             self.helper.connector_logger.error(err)

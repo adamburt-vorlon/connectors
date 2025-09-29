@@ -1,7 +1,8 @@
 import sys
+import json
 from datetime import datetime, timezone
 from external_import_connector.utils import *
-from stix2 import Relationship
+from stix2 import Relationship, Software, Directory
 import uuid
 
 from pycti import OpenCTIConnectorHelper
@@ -71,10 +72,10 @@ class ConnectorCatalogImport:
 
         # Get entities from external sources
         mongo: MongoClient = mongodb_connect(self.config.mongo_conn_str)
-        services = self.client.get_entities(mongo)
         catalog = mongo.catalog
-        mongo_endpoints = catalog.endpoints
-        mongo_scopes = catalog.scopes
+        services = self.client.get_entities(catalog)
+        mongo_endpoints = catalog.endPoint
+        mongo_scopes = catalog.scope
 
         service_namespace = uuid.UUID(self.config.service_namespace)
         endpoints_namespace = uuid.UUID(self.config.endpoint_namespace)
@@ -94,14 +95,16 @@ class ConnectorCatalogImport:
                 applicable_labels.append("observable")
             
             # Create the service observable
-            service_obj = {
-                "type": "Software",
-                "id": f"software--{service_deterministic_uuid}",
-                "value": service_name,
+            service_obj = json.loads(Software(
+                id=f"software--{service_deterministic_uuid}",
+                name=service_name,
+                swid=service_id
+            ).serialize())
+            service_obj.update({
                 "description": service_description,
                 "x_opencti_main_observable": True,
                 "labels": applicable_labels
-            }
+            })
             stix_objects.append(service_obj)
                 
             # Create the grouping
@@ -118,6 +121,8 @@ class ConnectorCatalogImport:
                 method = endpoint.get('method', '')
                 endpoint_deterministic_uuid = uuid.uuid5(endpoints_namespace, f"{service_id}{path}{method}")
                 description = endpoint.get('description', '')
+                properties = endpoint.get('properties', {})
+                permissions = properties.get('permissions', [])
                 
                 # Create the endpoint observable
                 endpoint_obj = {
@@ -129,6 +134,17 @@ class ConnectorCatalogImport:
                     "x_opencti_main_observable": True
                 }
                 stix_objects.append(endpoint_obj)
+                
+                # Create the relaionship between the endpoint and the scope / permissions
+                if permissions:
+                    for permission in permissions:
+                        esp_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{permission}:{service_id}")
+                        esp = Relationship(
+                            source_ref=f"text--{esp_deterministic_uuid}",
+                            target_ref=f"directory--{endpoint_deterministic_uuid}",
+                            relationship_type="related-to"
+                        )
+                        stix_objects.append(esp)
                 
                 # Create the relationship to the service
                 er = Relationship(
@@ -149,16 +165,16 @@ class ConnectorCatalogImport:
             # Collect all scopes for the service
             all_scopes = mongo_scopes.find({"service_id": service_id})
             for scope in all_scopes:
-                scope_id = scope_data.get('scope_id', '')
-                scope_name = scope_data.get('scope_name', '')
-                scope_description = scope_data.get('scope_description', '')
-                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_id}:{service_id}".encode())
+                scope_id = scope.get('scope_id', '')
+                scope_name = scope.get('scope_name', '')
+                scope_description = scope.get('scope_description', '')
+                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_id}:{service_id}")
                 applicable_labels = ["scope", service_id]
-                access_sensitive = scope_data.get('access_sensitive', False)
-                admin_capabilities = scope_data.get('admin_capabilities', False)
-                access_pii = scope_data.get('access_pii', False)
-                is_read = scope_data.get('is_read', False)
-                is_write = scope_data.get('is_write', False)
+                access_sensitive = scope.get('access_sensitive', False)
+                admin_capabilities = scope.get('admin_capabilities', False)
+                access_pii = scope.get('access_pii', False)
+                is_read = scope.get('is_read', False)
+                is_write = scope.get('is_write', False)
                 
                 score = 0
                 if access_sensitive:
@@ -242,7 +258,7 @@ class ConnectorCatalogImport:
                 )
 
             # Friendly name will be displayed on OpenCTI platform
-            friendly_name = "Connector template feed"
+            friendly_name = "Catalog Import"
 
             # Initiate a new work
             work_id = self.helper.api.work.initiate_work(
