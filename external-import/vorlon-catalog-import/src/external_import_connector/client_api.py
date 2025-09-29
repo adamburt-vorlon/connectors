@@ -44,7 +44,7 @@ class ConnectorClient:
         all_services = []
         try:
             services = mongo.service
-            all_services = services.find({"_id": "crowdstrikefalcon"})
+            all_services = services.find({})
 
         except Exception as err:
             self.helper.connector_logger.error(err)

@@ -83,12 +83,14 @@ class ConnectorCatalogImport:
         
         # Parse all services
         for service in services:
+            mapped_endpoints_to_scopes = {}
             service_id = service.get('_id')
             service_name = service.get('name')
             service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
             service_description = service.get('description')
             properties = service.get('properties', {})
             applicable_labels = service.get('categories', [])
+            applicable_labels.append("service")
             if service.get('hidden', False):
                 applicable_labels.append("hidden")
             if properties.get('observable', False):
@@ -107,13 +109,6 @@ class ConnectorCatalogImport:
             })
             stix_objects.append(service_obj)
                 
-            # Create the grouping
-            this_group = {
-                "type": "Grouping",
-                "id": f"grouping--{service_deterministic_uuid}",
-                "object_refs": [f"software--{service_deterministic_uuid}"]
-            }
-            
             # Collect the endpoints
             service_endpoints = mongo_endpoints.find({"service": service_id})
             for endpoint in service_endpoints:
@@ -131,20 +126,14 @@ class ConnectorCatalogImport:
                     "path": path,
                     "path_enc": method,
                     "description": description,
-                    "x_opencti_main_observable": True
+                    "x_opencti_main_observable": True,
+                    "labels": ["endpoint"]
                 }
                 stix_objects.append(endpoint_obj)
-                
-                # Create the relaionship between the endpoint and the scope / permissions
                 if permissions:
-                    for permission in permissions:
-                        esp_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{permission}:{service_id}")
-                        esp = Relationship(
-                            source_ref=f"text--{esp_deterministic_uuid}",
-                            target_ref=f"directory--{endpoint_deterministic_uuid}",
-                            relationship_type="related-to"
-                        )
-                        stix_objects.append(esp)
+                    mapped_endpoints_to_scopes.update({
+                        f"directory--{endpoint_deterministic_uuid}": permissions
+                    })
                 
                 # Create the relationship to the service
                 er = Relationship(
@@ -153,14 +142,7 @@ class ConnectorCatalogImport:
                     relationship_type="related-to"
                 )
                 
-                # Check if there are applicapble scopes and create relationships where possible
-                
-                
                 stix_objects.append(er)
-                
-                # Add to the grouping if required
-                if self.config.create_groupings:
-                    this_group['object_refs'].append(f"directory--{endpoint_deterministic_uuid}")
                 
             # Collect all scopes for the service
             all_scopes = mongo_scopes.find({"service_id": service_id})
@@ -214,9 +196,16 @@ class ConnectorCatalogImport:
                 )
                 stix_objects.append(sr)
                 
-                # Append to group if applicable
-                if self.config.create_groupings:
-                    this_group['object_refs'].append(f"text--{scope_deterministic_uuid}")
+                if mapped_endpoints_to_scopes:
+                    for det_id, endpoint_scopes in mapped_endpoints_to_scopes.items():
+                        if scope_id in endpoint_scopes:
+                            esp = Relationship(
+                                source_ref=f"text--{scope_deterministic_uuid}",
+                                target_ref=det_id,
+                                relationship_type="related-to"
+                            )
+                            stix_objects.append(esp)
+
 
         # ===========================
         # === Add your code above ===
