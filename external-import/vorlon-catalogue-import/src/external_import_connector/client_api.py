@@ -37,46 +37,19 @@ class ConnectorClient:
             )
             return None
 
-    def get_entities(self, collect_scopes: bool = False, collect_endpoints:bool = False) -> dict:
+    def get_entities(self, mongo: MongoClient) -> list:
         """
-        If params is None, retrieve all CVEs in National Vulnerability Database
-        :param params: Optional Params to filter what list to return
-        :return: A list of dicts of the complete collection of CVE from NVD
+        Return all services
         """
-        return_dict = {
-            "scopes": [],
-            "endpoints": []
-        }
+        all_services = []
         try:
-            # Create the mongo connection
-            mongo: MongoClient = mongodb_connect(self.config.mongo_conn_str)
-            
-            # Create the catalog obj
             catalog = mongo.catalog
-            
-            # Create the scope obj
-            if collect_scopes:
-                scopes = catalog.scope
-                
-                # Query the scopes
-                all_scopes = scopes.find({})
-                return_dict.update({
-                    "scopes": all_scopes
-                })
-            
-            # Create the endoint obj
-            if collect_endpoints:
-                endpoints = catalog.endPoint
-                        
-                # Query the endpoints
-                all_endpoints = endpoints.find({})
-                return_dict.update({
-                    "endpoints": all_endpoints
-                })
-            
-            # Return the data
-            return return_dict
-
+            services = catalog.service
+            all_services = services.find({"properties.observable": True})
 
         except Exception as err:
             self.helper.connector_logger.error(err)
+            return all_services
+
+        # Return the data
+        return all_services

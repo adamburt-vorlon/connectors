@@ -1,6 +1,7 @@
 import sys
 from datetime import datetime, timezone
 from external_import_connector.utils import *
+from stix2 import Grouping
 import uuid
 
 from pycti import OpenCTIConnectorHelper
@@ -69,65 +70,120 @@ class ConnectorCatalogImport:
         # ===========================
 
         # Get entities from external sources
-        entities = self.client.get_entities(collect_scopes=True, collect_endpoints=False)
+        services = self.client.get_entities(collect_services=self.config.collect_services, collect_scopes=self.config.collect_endpoints, collect_endpoints=self.config.collect_scopes)
 
-        endpoints = entities.get('endpoints')
-        scopes = entities.get('scopes')
-        scopes_namespace = uuid.UUID(self.config.scope_namespace)
+        service_namespace = uuid.UUID(self.config.service_namespace)
         endpoints_namespace = uuid.UUID(self.config.endpoint_namespace)
+        scopes_namespace = uuid.UUID(self.config.scope_namespace)
         
-        # Parse all scopes
-        for scope_data in scopes:
-            service_id = scope_data.get('service_id', '')
-            scope_id = scope_data.get('scope_id', '')
-            scope_name = scope_data.get('scope_name', '')
-            scope_description = scope_data.get('scope_description', '')
-            scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_name}:{service_id}".encode())
-            applicable_labels = ["scope", service_id]
-            access_sensitive = scope_data.get('access_sensitive', False)
-            admin_capabilities = scope_data.get('admin_capabilities', False)
-            access_pii = scope_data.get('access_pii', False)
-            is_read = scope_data.get('is_read', False)
-            is_write = scope_data.get('is_write', False)
+        # Parse all services
+        for service in services:
+            service_id = service.get('_id')
+            service_name = service.get('name')
+            service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
+            service_description = service.get('description')
+            properties = service.get('properties', {})
+            applicable_labels = service.get('categories', [])
+            if service.get('hidden', False):
+                applicable_labels.append("hidden")
+            if properties.get('observable', False):
+                applicable_labels.append("observable")
             
-            score = 0
-            if access_sensitive:
-                score += 10
-                applicable_labels.append("access_sensitive")
-            if admin_capabilities:
-                score += 45
-                applicable_labels.append("admin_capabilities")
-            if access_pii:
-                score += 20
-                applicable_labels.append("access_pii")
-            if is_read:
-                score += 5
-                applicable_labels.append("is_read")
-            if is_write:
-                score += 10
-                applicable_labels.append("is_write")
-            
-            # Create the scope observable
-            text_obj = {
-                "type": "Text",
-                "id": f"text--{scope_deterministic_uuid}",
-                "value": scope_name,
-                "description": scope_description,
-                "score": score,
+            # Create the service observable
+            service_obj = {
+                "type": "Software",
+                "id": f"software--{service_deterministic_uuid}",
+                "value": service_name,
+                "description": service_description,
                 "x_opencti_main_observable": True,
-                "x_opencti_author": service_id,
                 "labels": applicable_labels
             }
-            stix_objects.append(text_obj)
+            stix_objects.append(service_obj)
+                
+            # Create the grouping
+            this_group = {
+                "type": "Grouping",
+                "id": f"grouping--{service_deterministic_uuid}",
+                
+            }
+            g = Grouping()
+            
         
         # Parse all endpoints
-        # for endpoint in endpoints:
-        #     service_id = endpoint.get('service', '')
-        #     path = endpoint.get('path', '')
-        #     method = endpoint.get('method', '')
-        #     regex = endpoint.get('regex', '')
-        #     summary = endpoint.get('summary', '')
-        #     description = endpoint.get('description', '')
+        if self.config.collect_endpoints:
+            for endpoint in endpoints:
+                service_id = endpoint.get('service', '')
+                path = endpoint.get('path', '')
+                method = endpoint.get('method', '')
+                endpoint_deterministic_uuid = uuid.uuid5(endpoints_namespace, f"{service_id}{path}{method}")
+                description = endpoint.get('description', '')
+                
+                # Create the endpoint observable
+                endpoint_obj = {
+                    "type": "Directory",
+                    "id": f"directory--{endpoint_deterministic_uuid}",
+                    "value": path,
+                    "description": description,
+                    "x_opencti_main_observable": True
+                }
+                stix_objects.append(endpoint_obj)
+                
+                # Create grouping
+                if self.config.create_groupings:
+                    if service_id in groupings:
+                        these_groupings = groupings[service_id].get('object_refs', [])
+                        if f"directory--{endpoint_deterministic_uuid}" not in these_groupings:
+                            these_groupings.append(f"directory--{endpoint_deterministic_uuid}")
+                
+                service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
+                service_uuid = f"software--{service_deterministic_uuid}"
+        
+        # Parse all scopes
+        if self.config.collect_scopes:
+            for scope_data in scopes:
+                service_id = scope_data.get('service_id', '')
+                scope_id = scope_data.get('scope_id', '')
+                scope_name = scope_data.get('scope_name', '')
+                scope_description = scope_data.get('scope_description', '')
+                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_name}:{service_id}".encode())
+                applicable_labels = ["scope", service_id]
+                access_sensitive = scope_data.get('access_sensitive', False)
+                admin_capabilities = scope_data.get('admin_capabilities', False)
+                access_pii = scope_data.get('access_pii', False)
+                is_read = scope_data.get('is_read', False)
+                is_write = scope_data.get('is_write', False)
+                
+                score = 0
+                if access_sensitive:
+                    score += 10
+                    applicable_labels.append("access_sensitive")
+                if admin_capabilities:
+                    score += 45
+                    applicable_labels.append("admin_capabilities")
+                if access_pii:
+                    score += 20
+                    applicable_labels.append("access_pii")
+                if is_read:
+                    score += 5
+                    applicable_labels.append("is_read")
+                if is_write:
+                    score += 10
+                    applicable_labels.append("is_write")
+                
+                # Create the scope observable
+                scope_obj = {
+                    "type": "Text",
+                    "id": f"text--{scope_deterministic_uuid}",
+                    "value": scope_name,
+                    "description": scope_description,
+                    "score": score,
+                    "x_opencti_main_observable": True,
+                    "x_opencti_author": service_id,
+                    "labels": applicable_labels
+                }
+                stix_objects.append(scope_obj)
+        
+        
 
         # ===========================
         # === Add your code above ===

@@ -82,3 +82,41 @@ class ConfigConnector:
             self.load,
             default="",
         )
+        
+        self.service_namespace = get_config_variable(
+            "SERVICE_NAMESPACE",
+            ["connector_template", "service_namespace"],
+            self.load,
+            default="",
+        )
+        
+        self.collect_services = get_config_variable(
+            "COLLECT_SERVICES",
+            ["connector_template", "collect_services"],
+            self.load,
+            default=False,
+        )
+        
+        self.collect_endpoints = get_config_variable(
+            "COLLECT_ENDPOINTS",
+            ["connector_template", "collect_endpoints"],
+            self.load,
+            default=False,
+        )
+        
+        self.collect_scopes = get_config_variable(
+            "COLLECT_SCOPES",
+            ["connector_template", "collect_scopes"],
+            self.load,
+            default=False,
+        )
+        
+        self.create_groupings = get_config_variable(
+            "CREATE_GROUPINGS",
+            ["connector_template", "create_groupings"],
+            self.load,
+            default=False,
+        )
+        
+        
+        
