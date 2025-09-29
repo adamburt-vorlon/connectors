@@ -99,16 +99,15 @@ class ConnectorCatalogImport:
                     applicable_labels.append("observable")
                 
                 # Create the service observable
-                service_obj = json.loads(Software(
-                    id=f"software--{service_deterministic_uuid}",
-                    name=service_name,
-                    swid=service_id
-                ).serialize())
-                service_obj.update({
+                service_obj = {
+                    "type": "Software",
+                    "id": f"software--{service_deterministic_uuid}",
+                    "name": service_name,
+                    "swid": service_id,
                     "description": service_description,
                     "x_opencti_main_observable": True,
                     "labels": applicable_labels
-                })
+                }
                 stix_objects.append(service_obj)
                     
                 # Collect the endpoints
@@ -146,7 +145,6 @@ class ConnectorCatalogImport:
                         )
                         
                         stix_objects.append(er)
-                    
                 # Collect all scopes for the service
                 if self.config.collect_scopes:
                     all_scopes = mongo_scopes.find({"service_id": service_id})
