@@ -1,0 +1,20 @@
+services:
+  connector-template:
+    image: ipregistry:latest
+    environment:
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ID}
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_AUTO=${CONNECTOR_AUTO}
+      - CONNECTOR_IPREGISTRY_API_KEY=${CONNECTOR_IPREGISTRY_API_KEY}
+      - CONNECTOR_MAX_TLP=${CONNECTOR_MAX_TLP}
+    restart: always
+    networks:
+      - opencti-network
+
+networks:
+  opencti-network:
+    external: true
