@@ -1,6 +1,6 @@
 services:
-  connector-microsoft-internal-apps:
-    image: msinternalapps:latest
+  connector-apptabledataimport:
+    image: apptabledataimport:latest
     environment:
       - OPENCTI_URL=${OPENCTI_BASE_URL}
       - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
@@ -13,7 +13,13 @@ services:
       - CONNECTOR_TEMPLATE_API_BASE_URL=${CONNECTOR_TEMPLATE_API_BASE_URL}
       - CONNECTOR_TEMPLATE_API_KEY=${CONNECTOR_TEMPLATE_API_KEY}
       - CONNECTOR_TEMPLATE_TLP_LEVEL=${CONNECTOR_TEMPLATE_TLP_LEVEL}
-    restart: no
+      - CONNECTOR_PG_CONN_STR=${CONNECTOR_PG_CONN_STR}
+      - CONNECTOR_ONLY_UNASSIGNED=${CONNECTOR_ONLY_UNASSIGNED}
+      - CONNECTOR_OVERWRITE_EXISTING=${CONNECTOR_OVERWRITE_EXISTING}
+      - CONNECTOR_INITIAL_LAST_RUN=${CONNECTOR_INITIAL_LAST_RUN}
+    volumes:
+      - ./data:/data
+    restart: always
     networks:
       - opencti-network
 

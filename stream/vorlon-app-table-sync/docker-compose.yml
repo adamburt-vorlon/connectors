@@ -1,0 +1,23 @@
+services:
+  connector-app-table-stream:
+    image: apptablesync:latest
+    environment:
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ID}
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_LIVE_STREAM_ID=${CONNECTOR_LIVE_STREAM_ID} # ID of the live stream created in the OpenCTI UI
+      - CONNECTOR_LIVE_STREAM_LISTEN_DELETE={CONNECTOR_LIVE_STREAM_LISTEN_DELETE}
+      - CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES=${CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES}
+      - CONNECTOR_PG_CONN_STR=${CONNECTOR_PG_CONN_STR}
+      - CONNECTOR_MONGO_CONN_STR=${CONNECTOR_MONGO_CONN_STR}
+      - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
+    networks:
+      - opencti-network
+    restart: always
+
+networks:
+  opencti-network:
+    external: true

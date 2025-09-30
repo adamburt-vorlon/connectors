@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import uuid
 
 import yaml
 from pycti import get_config_variable
@@ -36,35 +37,24 @@ class ConfigConnector:
         :return: None
         """
         # OpenCTI configurations
-        self.duration_period = get_config_variable(
-            "CONNECTOR_DURATION_PERIOD",
-            ["connector", "duration_period"],
-            self.load,
-        )
 
         # Connector extra parameters
-        self.api_base_url = get_config_variable(
-            "CONNECTOR_TEMPLATE_API_BASE_URL",
-            ["connector_template", "api_base_url"],
-            self.load,
-        )
-
-        self.api_key = get_config_variable(
-            "CONNECTOR_TEMPLATE_API_KEY",
-            ["connector_template", "api_key"],
-            self.load,
-        )
-
-        self.tlp_level = get_config_variable(
-            "CONNECTOR_TEMPLATE_TLP_LEVEL",
-            ["connector_template", "tlp_level"],
-            self.load,
-            default="clear",
+        self.pg_conn_str = get_config_variable(
+            "CONNECTOR_PG_CONN_STR",
+            ["connector_template", "pg_conn_str"],
+            self.load
         )
         
-        self.uuid_namespace = get_config_variable(
-            "CONNECTOR_UUID_NAMESPACE",
-            ["connector_template", "uuid_namespace"],
-            self.load,
-            default="",
+        self.mongo_conn_str = get_config_variable(
+            "CONNECTOR_MONGO_CONN_STR",
+            ["connector_template", "mongo_conn_str"],
+            self.load
         )
+        
+        self.service_namespace = get_config_variable(
+            "SERVICE_NAMESPACE",
+            ["connector_template", "service_namespace"],
+            self.load
+        )
+        
+        self.service_namespace = uuid.UUID(self.service_namespace)

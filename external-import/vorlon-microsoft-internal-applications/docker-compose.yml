@@ -1,0 +1,23 @@
+services:
+  connector-microsoft-internal-apps:
+    image: msinternalapps:latest
+    environment:
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ID}
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_DURATION_PERIOD=${CONNECTOR_DURATION_PERIOD}
+      - CONNECTOR_UUID_NAMESPACE=${CONNECTOR_UUID_NAMESPACE}
+      - CONNECTOR_TEMPLATE_API_BASE_URL=${CONNECTOR_TEMPLATE_API_BASE_URL}
+      - CONNECTOR_TEMPLATE_API_KEY=${CONNECTOR_TEMPLATE_API_KEY}
+      - CONNECTOR_TEMPLATE_TLP_LEVEL=${CONNECTOR_TEMPLATE_TLP_LEVEL}
+      - CREATE_GROUPINGS=${CREATE_GROUPINGS}
+    restart: no
+    networks:
+      - opencti-network
+
+networks:
+  opencti-network:
+    external: true

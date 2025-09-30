@@ -1,6 +1,6 @@
 import sys
 from datetime import datetime, timezone
-from stix2 import Software, Relationship, URL
+from stix2 import Software, Relationship, Grouping
 import uuid
 import json
 
@@ -85,7 +85,7 @@ class ConnectorMSInternalApps:
             for entity in entities:
                 return_list.append(entity.get('standard_id'))
             if has_more:
-                existing_indicators = self.helper.api.indicator.list(
+                existing_indicators = self.helper.api.stix_cyber_observable.list(
                     filters={
                         "mode": "and",
                         "filters":[
@@ -122,6 +122,12 @@ class ConnectorMSInternalApps:
         # Vendor to use
         vendor = "microsoft365"
         
+        # Whether to create groupings
+        if isinstance(self.config.create_groupings, bool):
+            create_groupings = self.config.create_groupings
+        else:
+            create_groupings = True if self.config.create_groupings == 'true' else False
+        
         # Log all scopes to prevent creating multiple times
         global_scopes = []#self.get_existing_scopes()
         global_redirect_uris = []
@@ -133,17 +139,21 @@ class ConnectorMSInternalApps:
         rids = entities.get('resourceidentifiers', {})
 
         for app_id, app_data in apps.items():
+            grouping_ids = []
             app_name = app_data.get('name')
             redirect_uris = sorted(app_data.get('redirect_uris', []))
             
             # Create main software observable
+            software_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{vendor}:{app_id}")
             software = json.loads(Software(
+                id=f"software--{software_deterministic_uuid}",
                 name=app_name,
                 swid=app_id,
                 vendor=vendor
             ).serialize())
-            software["x_opencti_labels"] = [vendor, "application"]
+            software["x_opencti_labels"] = ["application", "verified", vendor]
             stix_objects.append(software)
+            grouping_ids.append(software.get('id'))
             
             # Create observables for the redirect URIs
             for uri in redirect_uris:
@@ -170,8 +180,8 @@ class ConnectorMSInternalApps:
                     relationship_type="related-to",
                     target_ref=software.get('id')
                 )
+                grouping_ids.append(url_relationship)
                 stix_objects.append(url_relationship)
-            
             
             # Aggregate all scopes
             scopes = []
@@ -188,7 +198,7 @@ class ConnectorMSInternalApps:
                 if scope_deterministic_uuid not in global_scopes:
                     
                     # Create the scope observable if it does not exist
-                    text_obj = {
+                    scope_obj = {
                         "type": "Text",
                         "id": f"text--{scope_deterministic_uuid}",
                         "value": scope,
@@ -196,20 +206,44 @@ class ConnectorMSInternalApps:
                         "x_opencti_author": vendor,
                         "labels": ["scope", vendor]
                     }
-                    stix_objects.append(text_obj)
+                    stix_objects.append(scope_obj)
                     global_scopes.append(scope_deterministic_uuid)
                 else:
-                    text_obj = {
+                    scope_obj = {
                         "id": f"text--{scope_deterministic_uuid}"
                     }
+                grouping_ids.append(scope_obj.get('id'))
                 
                 # Create the relationship
                 scope_relationship = Relationship(
-                    source_ref=text_obj.get('id'),
+                    source_ref=scope_obj.get('id'),
                     relationship_type="related-to",
                     target_ref=software.get('id')
                 )
+                grouping_ids.append(scope_relationship)
                 stix_objects.append(scope_relationship)
+
+            # Create grouping if enabled
+            if create_groupings:
+                group_deterministic_uuid = uuid.uuid5(NAMESPACE, f"{app_name}:{vendor}")
+                    
+                # Create the scope observable if it does not exist
+                group_obj = Grouping(
+                    id=f"grouping--{group_deterministic_uuid}",
+                    name=app_name,
+                    context='unspecified',
+                    object_refs=grouping_ids,
+                    labels=["application", vendor]
+                )
+                stix_objects.append(group_obj)
+                
+                # Create a relationship that relates the grouping to the software item
+                gr = Relationship(
+                    source_ref=software.get('id'),
+                    relationship_type="related-to",
+                    target_ref=group_obj.id
+                )
+                stix_objects.append(gr)
 
         # ===========================
         # === Add your code above ===

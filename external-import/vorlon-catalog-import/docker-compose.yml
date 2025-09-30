@@ -1,0 +1,29 @@
+services:
+  connector-import-catalog-data:
+    image: importcatalogdata:latest
+    environment:
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ID}
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_DURATION_PERIOD=${CONNECTOR_DURATION_PERIOD} # ISO8601 format in String, start with 'P...' for Period
+      - CONNECTOR_TEMPLATE_API_BASE_URL=${CONNECTOR_TEMPLATE_API_BASE_URL}
+      - CONNECTOR_TEMPLATE_API_KEY=${CONNECTOR_TEMPLATE_API_KEY}
+      - CONNECTOR_TEMPLATE_TLP_LEVEL=${CONNECTOR_TLP_LEVEL} # available values are: clear, white, green, amber, amber+strict, red - Default: 'clear'
+      - MONGO_CONN_STR=${MONGO_CONN_STR}
+      - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
+      - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
+      - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
+      - COLLECT_SERVICES=${COLLECT_SERVICES}
+      - INCLUDE_HIDDEN_SERVICES=${INCLUDE_HIDDEN_SERVICES}
+      - COLLECT_ENDPOINTS=${COLLECT_ENDPOINTS}
+      - COLLECT_SCOPES=${COLLECT_SCOPES}
+    networks:
+      - opencti-network
+
+    restart: no
+networks:
+  opencti-network:
+    external: true

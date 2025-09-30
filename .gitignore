@@ -22,3 +22,8 @@ black
 /lib64
 /bin
 pyvenv.cfg
+/external-import/vorlon-import-app-table-data/src/env
+/external-import/vorlon-catalog-import/src/env
+/external-import/vorlon-app-table-import/src/env
+external-import/vorlon-app-table-import/data/last_run.txt
+/stream/vorlon-app-table-sync/src/env
