@@ -104,7 +104,7 @@ class ConnectorCatalogImport:
                     "id": f"software--{service_deterministic_uuid}",
                     "name": service_name,
                     "swid": service_id,
-                    "description": service_description,
+                    "description": service_description if service_description else None,
                     "x_opencti_main_observable": True,
                     "labels": applicable_labels
                 }

@@ -101,7 +101,7 @@ class ConfigConnector:
             "INCLUDE_HIDDEN_SERVICES",
             ["connector_template", "include_hidden_services"],
             self.load,
-            default="",
+            default=False,
         )
         
         self.collect_endpoints = get_config_variable(

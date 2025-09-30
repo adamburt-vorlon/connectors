@@ -23,7 +23,7 @@ services:
     networks:
       - opencti-network
 
-    restart: always
+    restart: no
 networks:
   opencti-network:
     external: true
