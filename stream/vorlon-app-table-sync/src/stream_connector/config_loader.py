@@ -42,7 +42,13 @@ class ConfigConnector:
         self.pg_conn_str = get_config_variable(
             "CONNECTOR_PG_CONN_STR",
             ["connector_template", "pg_conn_str"],
-            self.load,
+            self.load
+        )
+        
+        self.mongo_conn_str = get_config_variable(
+            "CONNECTOR_MONGO_CONN_STR",
+            ["connector_template", "mongo_conn_str"],
+            self.load
         )
         
         self.service_namespace = get_config_variable(

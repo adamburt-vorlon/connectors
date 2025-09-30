@@ -1,6 +1,7 @@
 import psycopg2
 from psycopg2._psycopg import connection as PGConnection
 from psycopg2.errors import UniqueViolation
+from pymongo import MongoClient
 import re
 
 
@@ -43,3 +44,8 @@ def postgres_connect(connection_string: str, db_name: str = None) -> PGConnectio
         return conn
     except Exception as err:
         return None
+
+
+def mongodb_connect(connection_string: str) -> MongoClient:
+    mongo_client: MongoClient = MongoClient(connection_string)
+    return mongo_client

@@ -67,24 +67,36 @@ class ConnectorAppTableStream:
         ret_val = False
         if service_id == '':
             return True
-        service_uuid = uuid.uuid5(self.config.service_namespace, service_id)
-        id = f"software--{service_uuid}"
-        matches = self.helper.api.stix_cyber_observable.list(
-            filters={
-                "mode": "and",
-                "filters":[
-                    {
-                        "key": "id",
-                        "values": [id]
-                    }
-                ],
-                "filterGroups":[]
-            },
-        )
-        if matches:
+        mongo = mongodb_connect(self.config.mongo_conn_str)
+        catalog = mongo.catalog
+        services = catalog.service
+        filtered_services = services.find({
+            "_id": service_id
+        })
+        all_filtered_services = [x for x in filtered_services]
+        if all_filtered_services:
             ret_val = True
         else:
             ret_val = False
+        mongo.close()
+        # service_uuid = uuid.uuid5(self.config.service_namespace, service_id)
+        # id = f"software--{service_uuid}"
+        # matches = self.helper.api.stix_cyber_observable.list(
+        #     filters={
+        #         "mode": "and",
+        #         "filters":[
+        #             {
+        #                 "key": "id",
+        #                 "values": [id]
+        #             }
+        #         ],
+        #         "filterGroups":[]
+        #     },
+        # )
+        # if matches:
+        #     ret_val = True
+        # else:
+        #     ret_val = False
         return ret_val
 
     def create_app(self, data: dict):
@@ -95,7 +107,6 @@ class ConnectorAppTableStream:
         if self.service_is_valid(vendor):
             pg = postgres_connect(self.config.pg_conn_str)
             cursor = pg.cursor()
-            self.helper.api.stix_cyber_observable.add_label()
             
             # Get labels and created date
             extensions = data.get('extensions', {})
