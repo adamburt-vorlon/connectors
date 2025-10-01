@@ -115,40 +115,44 @@ class ConnectorIPRegsitry:
             if connection:
                 
                 # Create the asn
-                stix_asn = AutonomousSystem(
-                    number=connection.asn
-                )
+                if connection.asn:
+                    stix_asn = AutonomousSystem(
+                        number=connection.asn
+                    )
                 
                 # Create the domain
-                stix_domain = DomainName(
-                    value=connection.domain
-                )
+                if connection.domain:
+                    stix_domain = DomainName(
+                        value=connection.domain
+                    )
                 
                 # Create the organization
-                stix_organization = Identity(
-                    name=connection.organization,
-                    identity_class="organization"
-                )            
+                if connection.organization:
+                    stix_organization = Identity(
+                        name=connection.organization,
+                        identity_class="organization"
+                    )            
                 
             # Handle company data
             if company:
-                stix_company = Identity(
-                    name=company.name,
-                    identity_class="organization", 
-                    sectors=[company.type]
-                )
+                if company.name:
+                    stix_company = Identity(
+                        name=company.name,
+                        identity_class="organization", 
+                        sectors=[company.type]
+                    )
             
             # Handle location data
             if location:
-                
-                stix_location = Location(
-                    latitude=location.latitude,
-                    longitude=location.longitude,
-                    region=location.region.name,
-                    country=location.country.code,
-                    city=location.city,
-                    postal_code=location.postal
-                )
+                if location.city:
+                    stix_location = Location(
+                        latitude=location.latitude,
+                        longitude=location.longitude,
+                        region=location.region.name,
+                        country=location.country.code,
+                        city=location.city,
+                        postal_code=location.postal
+                    )
             
             # Populate stix objects
             if stix_asn:
@@ -253,7 +257,6 @@ class ConnectorIPRegsitry:
             
             score = 0
             
-            labels = ["IPRegistry"]
             labels_to_add = []
             labels_to_remove = []
             markings_to_add = []
@@ -363,10 +366,6 @@ class ConnectorIPRegsitry:
                     x_opencti_score=score,
                     update=True
                 )
-                # OpenCTIStix2.put_attribute_in_extension(
-                #     stix_entity, STIX_EXT_OCTI_SCO, "score", score
-                # )
-                # self.stix_objects_list.append(stix_entity)
         
         return self.stix_objects_list
 
