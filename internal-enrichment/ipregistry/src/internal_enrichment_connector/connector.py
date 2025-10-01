@@ -253,6 +253,8 @@ class ConnectorIPRegsitry:
                 else:
                     if label in opencti_labels:
                         labels_to_remove.append(label)
+            
+            score = 100 if score > 100 else score
                         
             # Determine malicious or suspicious
             if score >= self.config.malicious_score:
