@@ -57,6 +57,7 @@ class ConnectorAppTableImport:
         # Load configuration file and connection helper
         self.config = config
         self.helper = helper
+        self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper, self.config)
     
     def get_existing_apps(self) -> list:
@@ -278,7 +279,7 @@ class ConnectorAppTableImport:
                 )
 
             # Friendly name will be displayed on OpenCTI platform
-            friendly_name = "App Table Data Import"
+            friendly_name = self.config.connector_name
 
             # Initiate a new work
             work_id = self.helper.api.work.initiate_work(

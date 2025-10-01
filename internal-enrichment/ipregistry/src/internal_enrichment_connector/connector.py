@@ -85,6 +85,20 @@ class ConnectorIPRegsitry:
             ip_details: IpInfo = obs_data.get('ip_data')
             stix_entity = obs_data.get('observable')
             opencti_labels = stix_entity.get('x_opencti_labels', [])
+            full_observable = self.helper.api.stix_cyber_observable.read(filters={
+                "mode": "and",
+                "filters": [
+                    {
+                        "key": "standard_id",
+                        "values": [obs_id]
+                    }
+                ],
+                "filterGroups": []
+            })
+            current_markings = []
+            if full_observable:
+                current_markings = full_observable.get('objectMarking', [])
+                current_markings[:] = [x.get('standard_id') for x in current_markings if x.get('definition_type')== "IPRegistry"]
             
             connection = ip_details.connection
             company = ip_details.company
@@ -281,27 +295,31 @@ class ConnectorIPRegsitry:
             
             # Apply all pending labels
             for label in labels_to_remove:
-                self.helper.api.stix_cyber_observable.remove_label(
-                    id=obs_id,
-                    label_name=label
-                )
+                if label in opencti_labels:
+                    self.helper.api.stix_cyber_observable.remove_label(
+                        id=obs_id,
+                        label_name=label
+                    )
             for label in labels_to_add:
-                self.helper.api.stix_cyber_observable.add_label(
-                    id=obs_id,
-                    label_name=label
-                )
+                if label not in opencti_labels:
+                    self.helper.api.stix_cyber_observable.add_label(
+                        id=obs_id,
+                        label_name=label
+                    )
             
             # Apply all pending markings
             for marking in markings_to_remove:
-                self.helper.api.stix_cyber_observable.remove_marking_definition(
-                    id=obs_id,
-                    marking_definition_id=marking
-                )
+                if marking in current_markings:
+                    self.helper.api.stix_cyber_observable.remove_marking_definition(
+                        id=obs_id,
+                        marking_definition_id=marking
+                    )
             for marking in markings_to_add:
-                self.helper.api.stix_cyber_observable.add_marking_definition(
-                    id=obs_id,
-                    marking_definition_id=marking
-                )
+                if marking not in current_markings:
+                    self.helper.api.stix_cyber_observable.add_marking_definition(
+                        id=obs_id,
+                        marking_definition_id=marking
+                    )
                         
             # Create the indicator
             namespace = uuid.UUID(self.config.indicator_namespace)
@@ -311,7 +329,7 @@ class ConnectorIPRegsitry:
             new_indicator = {
                 "type": "indicator",
                 "id": new_indicator_id_str,
-                "name": f"{ip} (IPRegistry)",
+                "name": f"IPRegistry - {ip}",
                 "pattern_type": "stix",
                 "pattern": f"[{ip_details.type.lower()}-addr:value = '{ip}']",
                 "x_opencti_main_observable_type": f"{ip_details.type}-Addr",
@@ -340,10 +358,15 @@ class ConnectorIPRegsitry:
             
             # Apply the score if necessary
             if self.config.apply_score:
-                OpenCTIStix2.put_attribute_in_extension(
-                    stix_entity, STIX_EXT_OCTI_SCO, "score", score
+                self.helper.api.stix_cyber_observable.create(
+                    simple_observable_id=obs_id,
+                    x_opencti_score=score,
+                    update=True
                 )
-                self.stix_objects_list.append(stix_entity)
+                # OpenCTIStix2.put_attribute_in_extension(
+                #     stix_entity, STIX_EXT_OCTI_SCO, "score", score
+                # )
+                # self.stix_objects_list.append(stix_entity)
         
         return self.stix_objects_list
 

@@ -1,9 +1,12 @@
 services:
-  connector-template:
+  connector-ipregistry:
     image: ipregistry:latest
     volumes:
       - ./data:/data
     environment:
+      - MQ_HOST=${RABBITMQ_HOSTNAME}
+      - MQ_USER=${RABBITMQ_DEFAULT_USER}
+      - MQ_PASS=${RABBITMQ_DEFAULT_PASS}
       - OPENCTI_URL=${OPENCTI_BASE_URL}
       - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
       - CONNECTOR_ID=${CONNECTOR_ID}
@@ -29,10 +32,9 @@ services:
       - MALICIOUS_SCORE=${MALICIOUS_SCORE}
       - APPLY_SCORE_TO_OBSERVABLE=${APPLY_SCORE_TO_OBSERVABLE}
       - BATCH_SIZE=${BATCH_SIZE}
-
-    restart: always
     networks:
       - opencti-network
+    restart: always
 
 networks:
   opencti-network:

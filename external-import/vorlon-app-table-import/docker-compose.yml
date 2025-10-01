@@ -1,5 +1,5 @@
 services:
-  connector-apptabledataimport:
+  connector-apptableimport:
     image: apptableimport:latest
     environment:
       - OPENCTI_URL=${OPENCTI_BASE_URL}

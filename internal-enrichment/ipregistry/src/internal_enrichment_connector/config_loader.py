@@ -60,6 +60,7 @@ class ConfigConnector:
             "IS_ABUSER_SCORE",
             ["connector_template", "is_abuser_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -67,6 +68,7 @@ class ConfigConnector:
             "IS_ANONYMOUS_SCORE",
             ["connector_template", "is_anonymous_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -74,6 +76,7 @@ class ConfigConnector:
             "IS_ATTACKER_SCORE",
             ["connector_template", "is_attacker_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -81,6 +84,7 @@ class ConfigConnector:
             "IS_BOGON_SCORE",
             ["connector_template", "is_bogon_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -88,6 +92,7 @@ class ConfigConnector:
             "IS_CLOUD_PROVIDER_SCORE",
             ["connector_template", "is_cloud_provider_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -95,6 +100,7 @@ class ConfigConnector:
             "IS_PROXY_SCORE",
             ["connector_template", "is_proxy_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -102,6 +108,7 @@ class ConfigConnector:
             "IS_RELAY_SCORE",
             ["connector_template", "is_relay_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -109,6 +116,7 @@ class ConfigConnector:
             "IS_THREAT_SCORE",
             ["connector_template", "is_threat_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -116,6 +124,7 @@ class ConfigConnector:
             "IS_TOR_SCORE",
             ["connector_template", "is_tor_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -123,6 +132,7 @@ class ConfigConnector:
             "IS_TOR_EXIT_NODE_SCORE",
             ["connector_template", "is_tor_exit_node_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -130,6 +140,7 @@ class ConfigConnector:
             "IS_VPN_SCORE",
             ["connector_template", "is_vpn_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -137,6 +148,7 @@ class ConfigConnector:
             "SUSPICIOUS_SCORE",
             ["connector_template", "suspicious_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -144,6 +156,7 @@ class ConfigConnector:
             "MALICIOUS_SCORE",
             ["connector_template", "malicious_score"],
             self.load,
+            isNumber=True,
             default=0
         )
         
@@ -158,6 +171,7 @@ class ConfigConnector:
             "BATCH_SIZE",
             ["connector_template", "batch_size"],
             self.load,
+            isNumber=True,
             default=1024
         )
         

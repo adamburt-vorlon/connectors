@@ -43,6 +43,13 @@ class ConfigConnector:
         )
 
         # Connector extra parameters
+        self.connector_name = get_config_variable(
+            "CONNECTOR_NAME",
+            ["connector", "name"],
+            self.load,
+            default="TOR Exit Nodes"
+        )
+        
         self.api_base_url = get_config_variable(
             "TOR_BASE_URL",
             ["connector_torexitnodes", "api_base_url"],
