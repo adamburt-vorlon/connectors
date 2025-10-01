@@ -1,4 +1,4 @@
-from pycti import OpenCTIConnectorHelper, StixCoreRelationship, STIX_EXT_OCTI_SCO, OpenCTIStix2
+from pycti import OpenCTIConnectorHelper, StixCoreRelationship
 import os
 import json
 from datetime import datetime, timedelta
@@ -8,7 +8,7 @@ from stix2 import DomainName, Relationship, Identity, AutonomousSystem, Location
 from .client_api import ConnectorClient
 from .config_loader import ConfigConnector
 from .converter_to_stix import ConverterToStix
-from ipregistry import IpregistryClient, IpInfo, ApiResponse
+from ipregistry import IpregistryClient, IpInfo, ApiResponse, ApiError
 
 
 class ConnectorIPRegsitry:
@@ -70,9 +70,17 @@ class ConnectorIPRegsitry:
         self.stix_objects_list = []
     
     def handle_ips(self, json_data: dict) -> list:
-        all_ips = [v.get('obs_value') for k, v in json_data.items()]
         
-        all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
+        all_ips = [v.get('obs_value') for k, v in json_data.items()]
+                
+        try:
+            all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
+        except ApiError as err:
+            self.helper.api.work.to_received(
+                self.helper.work_id,
+                err.message
+            )
+            return []
         for item in all_ip_data.data:
             ip = item.ip
             matching_observer = [k for k,v in json_data.items() if v.get('obs_value') == ip]
