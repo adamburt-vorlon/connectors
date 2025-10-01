@@ -1,4 +1,3 @@
-version: '3'
 services:
   connector-abuseipdb:
     image: opencti/connector-abuseipdb:rolling
