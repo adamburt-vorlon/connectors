@@ -75,8 +75,9 @@ class ConnectorIPRegsitry:
                 
         try:
             all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
+            self.helper.set_state({"status": f"consumed {all_ip_data.credits.consumed} / {all_ip_data.credits.remaining}"})
         except ApiError as err:
-            self.helper.set_state({"error": err.message})
+            self.helper.set_state({"status": err.message})
             self.helper.connector_logger.error(err.message)
             self.helper.api.work.to_received(
                 self.helper.work_id,
@@ -492,6 +493,7 @@ class ConnectorIPRegsitry:
         :return: string
         """
         try:
+            self.helper.set_state({"status": "healthy"})
             cache_file_path = os.path.join("./data", "cached_items.json")
             self.check_and_build_markings()
                         
