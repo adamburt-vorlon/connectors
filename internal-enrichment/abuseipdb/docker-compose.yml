@@ -5,5 +5,11 @@ services:
     environment:
       - OPENCTI_URL=http://localhost
       - OPENCTI_TOKEN=ChangeMe
-      - ABUSEIPDB_API_KEY=ChangeMe
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY}
+    networks:
+      - opencti-network
     restart: always
+
+networks:
+  opencti-network:
+    external: true
