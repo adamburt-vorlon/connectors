@@ -1,8 +1,14 @@
-from pycti import OpenCTIConnectorHelper
-
+from pycti import OpenCTIConnectorHelper, StixCoreRelationship, STIX_EXT_OCTI_SCO, OpenCTIStix2
+import os
+import json
+from datetime import datetime, timedelta
+import pytz
+import uuid
+from stix2 import DomainName, Relationship, Identity, AutonomousSystem, Location, Indicator, MarkingDefinition
 from .client_api import ConnectorClient
 from .config_loader import ConfigConnector
 from .converter_to_stix import ConverterToStix
+from ipregistry import IpregistryClient, IpInfo, ApiResponse
 
 
 class ConnectorIPRegsitry:
@@ -51,13 +57,307 @@ class ConnectorIPRegsitry:
         self.helper = helper
         self.client = ConnectorClient(self.helper, self.config)
         self.converter_to_stix = ConverterToStix(self.helper)
+        self.ipr_client: IpregistryClient = IpregistryClient(config.api_key)
 
         # Define variables
-        self.author = None
+        self.author = Identity(
+            name="IPRegistry",
+            identity_class="organization",
+            description="IPRegistry",
+            sectors=["technology"]
+        )
         self.tlp = None
         self.stix_objects_list = []
+    
+    def handle_ips(self, json_data: dict) -> list:
+        all_ips = [v.get('obs_value') for k, v in json_data.items()]
+        
+        all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
+        for item in all_ip_data.data:
+            ip = item.ip
+            matching_observer = [k for k,v in json_data.items() if v.get('obs_value') == ip]
+            if matching_observer:
+                json_data[matching_observer[0]].update({
+                    "ip_data": item
+                })
+        for obs_id, obs_data in json_data.items():
+            
+            ip_details: IpInfo = obs_data.get('ip_data')
+            stix_entity = obs_data.get('observable')
+            opencti_labels = stix_entity.get('x_opencti_labels', [])
+            
+            connection = ip_details.connection
+            company = ip_details.company
+            location = ip_details.location
+            security = ip_details.security
+            
+            stix_asn = None
+            stix_domain = None
+            stix_organization = None
+            stix_company = None
+            stix_location = None
+            
+            # Handle connection data
+            if connection:
+                
+                # Create the asn
+                stix_asn = AutonomousSystem(
+                    number=connection.asn
+                )
+                
+                # Create the domain
+                stix_domain = DomainName(
+                    value=connection.domain
+                )
+                
+                # Create the organization
+                stix_organization = Identity(
+                    name=connection.organization,
+                    identity_class="organization"
+                )            
+                
+            # Handle company data
+            if company:
+                stix_company = Identity(
+                    name=company.name,
+                    identity_class="organization", 
+                    sectors=[company.type]
+                )
+            
+            # Handle location data
+            if location:
+                
+                stix_location = Location(
+                    latitude=location.latitude,
+                    longitude=location.longitude,
+                    region=location.region.name,
+                    country=location.country.code,
+                    city=location.city,
+                    postal_code=location.postal
+                )
+            
+            # Populate stix objects
+            if stix_asn:
+                self.stix_objects_list.append(stix_asn)
+                self.stix_objects_list.append(Relationship(
+                    id=StixCoreRelationship.generate_id(
+                        "belongs-to", obs_id, stix_asn.id
+                    ),
+                    relationship_type="belongs-to",
+                    source_ref=obs_id,
+                    target_ref=stix_asn.id
+                ))
+            
+            if stix_domain:
+                self.stix_objects_list.append(stix_domain)
+                self.stix_objects_list.append(Relationship(
+                    source_ref=obs_id,
+                    target_ref=stix_domain.id,
+                    relationship_type="related-to"
+                ))
+            
+            if stix_organization:
+                self.stix_objects_list.append(stix_organization)
+                self.stix_objects_list.append(Relationship(
+                    source_ref=obs_id,
+                    target_ref=stix_organization.id,
+                    relationship_type="related-to"
+                ))
+            
+            if stix_company:
+                self.stix_objects_list.append(stix_company)
+                self.stix_objects_list.append(Relationship(
+                    source_ref=obs_id,
+                    target_ref=stix_company.id,
+                    relationship_type="related-to"
+                ))
+            
+            if stix_location:
+                self.stix_objects_list.append(stix_location)
+                self.stix_objects_list.append(Relationship(
+                    source_ref=obs_id,
+                    target_ref=stix_location.id,
+                    relationship_type="related-to"
+                ))
 
-    def _collect_intelligence(self, value, obs_id) -> list:
+                if stix_company:
+                    self.stix_objects_list.append(Relationship(
+                        id=StixCoreRelationship.generate_id(
+                            "located-at", stix_company.id, stix_location.id
+                        ),
+                        source_ref=stix_company.id,
+                        target_ref=stix_location.id,
+                        relationship_type="located-at"
+                    ))
+            
+            score_map = {
+                "IPRegistry:is_abuser": {
+                    "check_object": security.is_abuser,
+                    "score": self.config.is_abuser_score
+                },
+                "IPRegistry:is_anonymous": {
+                    "check_object": security.is_anonymous,
+                    "score": self.config.is_anonymous_score
+                },
+                "IPRegistry:is_attacker": {
+                    "check_object": security.is_attacker,
+                    "score": self.config.is_attacker_score
+                },
+                "IPRegistry:is_bogon": {
+                    "check_object": security.is_bogon,
+                    "score": self.config.is_bogon_score
+                },
+                "IPRegistry:is_cloud_provider": {
+                    "check_object": security.is_cloud_provider,
+                    "score": self.config.is_cloud_provider_score
+                },
+                "IPRegistry:is_proxy": {
+                    "check_object": security.is_proxy,
+                    "score": self.config.is_proxy_score
+                },
+                "IPRegistry:is_relay": {
+                    "check_object": security.is_relay,
+                    "score": self.config.is_relay_score
+                },
+                "IPRegistry:is_threat": {
+                    "check_object": security.is_threat,
+                    "score": self.config.is_threat_score
+                },
+                "IPRegistry:is_tor": {
+                    "check_object": security.is_tor,
+                    "score": self.config.is_tor_score
+                },
+                "IPRegistry:is_tor_exit": {
+                    "check_object": security.is_tor_exit,
+                    "score": self.config.is_tor_exit_node_score
+                },
+                "IPRegistry:is_vpn": {
+                    "check_object": security.is_vpn,
+                    "score": self.config.is_vpn_score
+                }
+            }
+            
+            score = 0
+            
+            labels = ["IPRegistry"]
+            labels_to_add = []
+            labels_to_remove = []
+            markings_to_add = []
+            markings_to_remove = []
+            
+            # Determine which labels to apply
+            for label, data in score_map.items():
+                if data.get('check_object'):
+                    labels_to_add.append(label)
+                    score += data.get('score')
+                else:
+                    if label in opencti_labels:
+                        labels_to_remove.append(label)
+                        
+            # Determine malicious or suspicious
+            if score >= self.config.malicious_score:
+                labels_to_add.append(self.config.malicious_label)
+                labels_to_remove.append(self.config.suspicious_label)
+                labels_to_remove.append(self.config.clean_label)
+                markings_to_add.append(self.config.marking_malicious)
+                markings_to_remove.append(self.config.marking_suspicious)
+                markings_to_remove.append(self.config.marking_clean)
+            elif score >= self.config.suspicious_score:
+                labels_to_add.append(self.config.suspicious_label)
+                labels_to_remove.append(self.config.clean_label)
+                labels_to_remove.append(self.config.malicious_label)
+                markings_to_add.append(self.config.marking_suspicious)
+                markings_to_remove.append(self.config.marking_malicious)
+                markings_to_remove.append(self.config.marking_clean)
+            else:
+                labels_to_add.append(self.config.clean_label)
+                labels_to_remove.append(self.config.suspicious_label)
+                labels_to_remove.append(self.config.malicious_label)
+                markings_to_add.append(self.config.marking_clean)
+                markings_to_remove.append(self.config.marking_suspicious)
+                markings_to_remove.append(self.config.marking_malicious)
+            
+            # Apply all pending labels
+            for label in labels_to_remove:
+                self.helper.api.stix_cyber_observable.remove_label(
+                    id=obs_id,
+                    label_name=label
+                )
+            for label in labels_to_add:
+                self.helper.api.stix_cyber_observable.add_label(
+                    id=obs_id,
+                    label_name=label
+                )
+            
+            # Apply all pending markings
+            for marking in markings_to_remove:
+                self.helper.api.stix_cyber_observable.remove_marking_definition(
+                    id=obs_id,
+                    marking_definition_id=marking
+                )
+            for marking in markings_to_add:
+                self.helper.api.stix_cyber_observable.add_marking_definition(
+                    id=obs_id,
+                    marking_definition_id=marking
+                )
+                        
+            # Create the indicator
+            valid_from = datetime.now(pytz.UTC)
+            valid_to = valid_from + timedelta(hours=self.config.ttl)
+            namespace = uuid.UUID(self.config.indicator_namespace)
+            new_indicator_id = uuid.uuid5(namespace, f"IPRegistry-{ip}")
+            new_indicator_id_str = f"indicator--{new_indicator_id}"
+            
+            ni = json.loads(Indicator(
+                name="Test",
+                pattern_type="stix",
+                pattern=f"[{ip_details.type.lower()}-addr:value = '{ip}']",
+                valid_from=valid_from,
+                valid_until=valid_to
+            ).serialize())
+            
+            new_indicator = {
+                "type": "indicator",
+                "id": new_indicator_id_str,
+                "name": f"{ip} (IPRegistry)",
+                "pattern_type": "stix",
+                "pattern": f"[{ip_details.type.lower()}-addr:value = '{ip}']",
+                "x_opencti_main_observable_type": f"{ip_details.type}-Addr",
+                "x_opencti_score": score,
+                "x_opencti_labels": labels_to_add,
+                "detection": True,
+                "object_marking_refs": markings_to_add,
+                "valid_from": valid_from.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "valid_until": valid_to.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            }
+            self.stix_objects_list.append(new_indicator)
+            self.stix_objects_list.append(Relationship(
+                source_ref=obs_id,
+                target_ref=new_indicator_id_str,
+                relationship_type="related-to"
+            ))
+            
+            # Create the external reference
+            external_reference = self.helper.api.external_reference.create(
+                source_name="IPRegistry",
+                url=f"https://ipregistry.co/{ip}",
+                external_id=ip
+            )
+            self.helper.api.stix_cyber_observable.add_external_reference(
+                id=obs_id,
+                external_reference_id=external_reference.get('standard_id')
+            )
+            
+            # Apply the score if necessary
+            if self.config.apply_score:
+                OpenCTIStix2.put_attribute_in_extension(
+                    stix_entity, STIX_EXT_OCTI_SCO, "score", score
+                )
+                self.stix_objects_list.append(stix_entity)
+        
+        return self.stix_objects_list
+
+    def _collect_intelligence(self, json_data: dict) -> list:
         """
         Collect intelligence from the source and convert into STIX object
         :return: List of STIX objects
@@ -67,8 +367,8 @@ class ConnectorIPRegsitry:
         # ===========================
         # === Add your code below ===
         # ===========================
-        
-        pass
+        entities = self.handle_ips(json_data)
+        return entities
 
         # EXAMPLE
         # === Get entities from external sources based on entity value
@@ -86,7 +386,6 @@ class ConnectorIPRegsitry:
         # ===========================
         # === Add your code above ===
         # ===========================
-        raise NotImplementedError
 
     def entity_in_scope(self, data) -> bool:
         """
@@ -103,7 +402,7 @@ class ConnectorIPRegsitry:
         else:
             return False
 
-    def extract_and_check_markings(self, opencti_entity: dict) -> None:
+    def extract_and_check_markings(self, tlp: str) -> bool:
         """
         Extract TLP, and we check if the variable "max_tlp" is less than
         or equal to the markings access of the entity from OpenCTI
@@ -111,18 +410,56 @@ class ConnectorIPRegsitry:
         :param opencti_entity: Dict of observable from OpenCTI
         :return: Boolean
         """
-        if len(opencti_entity["objectMarking"]) != 0:
-            for marking_definition in opencti_entity["objectMarking"]:
-                if marking_definition["definition_type"] == "TLP":
-                    self.tlp = marking_definition["definition"]
+        if tlp:
+            valid_max_tlp = self.helper.check_max_tlp(self.tlp, self.config.max_tlp)
+        else:
+            valid_max_tlp = True
+        
+        return valid_max_tlp
 
-        valid_max_tlp = self.helper.check_max_tlp(self.tlp, self.config.max_tlp)
-
-        if not valid_max_tlp:
-            raise ValueError(
-                "[CONNECTOR] Do not send any data, TLP of the observable is greater than MAX TLP,"
-                "the connector does not has access to this observable, please check the group of the connector user"
+    def check_and_build_markings(self):
+        all_markings = self.helper.api.marking_definition.list()
+        ip_registry_markings = [x for x in all_markings if x.get('definition_type') == "IPRegistry"]
+        for marking in ip_registry_markings:
+            if marking.get('definition') == "IPRegistry:clean":
+                self.config.marking_clean = marking.get('standard_id')
+            if marking.get('definition') == "IPRegistry:suspicious":
+                self.config.marking_suspicious = marking.get('standard_id')
+            if marking.get('definition') == "IPRegistry:malicious":
+                self.config.marking_malicious = marking.get('standard_id')
+        
+        if not self.config.marking_clean:
+            md = {
+                "definition_type": "IPRegistry",
+                "definition": "IPRegistry:clean",
+                "x_opencti_color": "#2bcc45"
+            }
+            clean_md = self.helper.api.marking_definition.create(
+                **md
             )
+            self.config.marking_clean = clean_md.get('id')
+        
+        if not self.config.marking_suspicious:
+            md = {
+                "definition_type": "IPRegistry",
+                "definition": "IPRegistry:suspicious",
+                "x_opencti_color": "#f89d3a"
+            }
+            suspicious_md = self.helper.api.marking_definition.create(
+                **md
+            )
+            self.config.marking_suspicious = suspicious_md.get('id')
+        
+        if not self.config.marking_malicious:
+            md = {
+                "definition_type": "IPRegistry",
+                "definition": "IPRegistry:malicious",
+                "x_opencti_color": "#fa1818"
+            }
+            malicious_md = self.helper.api.marking_definition.create(
+                **md
+            )
+            self.config.marking_malcious = malicious_md.get('id')
 
     def process_message(self, data: dict) -> str:
         """
@@ -133,11 +470,23 @@ class ConnectorIPRegsitry:
         :return: string
         """
         try:
+            cache_file_path = os.path.join("./data", "cached_items.json")
+            self.check_and_build_markings()
+                        
+            # Test the TLP max level
             opencti_entity = data["enrichment_entity"]
-            self.extract_and_check_markings(opencti_entity)
+            tlp = "TLP:CLEAR"
+            for marking_definition in opencti_entity["objectMarking"]:
+                if marking_definition["definition_type"] == "TLP":
+                    tlp = marking_definition["definition"]
+            valid = self.extract_and_check_markings(tlp)
+            if not valid:
+                info_msg = f"[FAILED] {tlp} is higher than {self.config.max_tlp}, will not process"
+                return info_msg
+
 
             # To enrich the data, you can add more STIX object in stix_objects
-            self.stix_objects_list = data["stix_objects"]
+            self.stix_objects_list = []
             observable = data["stix_entity"]
 
             # Extract information from entity data
@@ -151,15 +500,68 @@ class ConnectorIPRegsitry:
             self.helper.connector_logger.info(info_msg, {"type": {obs_type}})
 
             if self.entity_in_scope(data):
+                
                 # Performing the collection of intelligence and enrich the entity
                 # ===========================
                 # === Add your code below ===
                 # ===========================
-
-                # EXAMPLE Collect intelligence and enrich current STIX object
-                stix_objects = self._collect_intelligence(obs_value, obs_standard_id)
-
+                
+                # If there is a batch size greater than 1 defined, then use
+                # the batch storage                    
+                
+                # Test the last update TTL
+                needs_updating = True
+                
+                # Check to see if the indicator already exists
+                existing_indicator = self.helper.api.indicator.read(
+                    filters={
+                        "mode": "and",
+                        "filters": [
+                            {
+                                "key": "name",
+                                "values": [f"{obs_value} (IPRegistry)"]
+                            }
+                        ],
+                        "filterGroups": []
+                    }
+                )
+                if existing_indicator:
+                    info_msg = "[CONNECTOR] Observer within TTL, skipping lookup"
+                    return info_msg
+                
+                json_data = {}
+                if os.path.exists(cache_file_path):
+                    with open(cache_file_path, "r") as fp:
+                        try:
+                            json_data = json.load(fp)
+                        except:
+                            json_data = {}
+                
+                # Add to the cache
+                if obs_standard_id not in json_data:
+                    json_data[obs_standard_id] = {
+                        "obs_value": obs_value,
+                        "observable": observable
+                    }
+                
+                # If we have reached our batch size, the process them all
+                if len(json_data) > self.config.batch_size:
+                    stix_objects = self._collect_intelligence(json_data)
+                
+                # Otherwise save and continue
+                else:
+                    info_msg = "[CONNECTOR] Observer lookup added to cache"
+                    with open(cache_file_path, "w") as pf:
+                        json.dump(json_data, pf)
+                    return info_msg
+                
+                # Overwrite the cache file with empty data
+                with open(cache_file_path, "w") as pf:
+                    json.dump({}, pf)
+                
+                # Add the author
                 if stix_objects is not None and len(stix_objects):
+                    stix_objects.append(self.author)
                     return self._send_bundle(stix_objects)
                 else:
                     info_msg = "[CONNECTOR] No information found"
