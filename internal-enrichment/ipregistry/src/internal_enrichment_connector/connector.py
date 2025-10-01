@@ -302,19 +302,9 @@ class ConnectorIPRegsitry:
                 )
                         
             # Create the indicator
-            valid_from = datetime.now(pytz.UTC)
-            valid_to = valid_from + timedelta(hours=self.config.ttl)
             namespace = uuid.UUID(self.config.indicator_namespace)
             new_indicator_id = uuid.uuid5(namespace, f"IPRegistry-{ip}")
             new_indicator_id_str = f"indicator--{new_indicator_id}"
-            
-            ni = json.loads(Indicator(
-                name="Test",
-                pattern_type="stix",
-                pattern=f"[{ip_details.type.lower()}-addr:value = '{ip}']",
-                valid_from=valid_from,
-                valid_until=valid_to
-            ).serialize())
             
             new_indicator = {
                 "type": "indicator",
@@ -326,9 +316,7 @@ class ConnectorIPRegsitry:
                 "x_opencti_score": score,
                 "x_opencti_labels": labels_to_add,
                 "detection": True,
-                "object_marking_refs": markings_to_add,
-                "valid_from": valid_from.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                "valid_until": valid_to.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                "object_marking_refs": markings_to_add
             }
             self.stix_objects_list.append(new_indicator)
             self.stix_objects_list.append(Relationship(

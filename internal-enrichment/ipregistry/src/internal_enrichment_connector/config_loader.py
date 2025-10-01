@@ -56,12 +56,6 @@ class ConfigConnector:
             self.load
         )
         
-        self.ttl = get_config_variable(
-            "TTL",
-            ["connector_template", "ttl"],
-            self.load
-        )
-        
         self.is_abuser_score = get_config_variable(
             "IS_ABUSER_SCORE",
             ["connector_template", "is_abuser_score"],
