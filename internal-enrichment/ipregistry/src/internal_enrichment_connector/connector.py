@@ -76,7 +76,8 @@ class ConnectorIPRegsitry:
         try:
             all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
         except ApiError as err:
-            self.helper.log_error(err.message)
+            self.helper.set_state({"error": err.message})
+            self.helper.connector_logger.error(err.message)
             self.helper.api.work.to_received(
                 self.helper.work_id,
                 err.message
