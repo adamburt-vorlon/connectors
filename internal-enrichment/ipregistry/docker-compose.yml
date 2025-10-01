@@ -32,6 +32,7 @@ services:
       - MALICIOUS_SCORE=${MALICIOUS_SCORE}
       - APPLY_SCORE_TO_OBSERVABLE=${APPLY_SCORE_TO_OBSERVABLE}
       - BATCH_SIZE=${BATCH_SIZE}
+      - MAX_WAIT_PERIOD=${MAX_WAIT_PERIOD}
     networks:
       - opencti-network
     restart: always

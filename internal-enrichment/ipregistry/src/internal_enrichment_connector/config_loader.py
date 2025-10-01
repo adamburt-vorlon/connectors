@@ -174,6 +174,18 @@ class ConfigConnector:
             isNumber=True,
             default=1024
         )
+        if self.batch_size > 1024:
+            self.batch_size = 1024
+        if self.batch_size < 0:
+            self.batch_size = 0
+        
+        self.max_wait_period = get_config_variable(
+            "MAX_WAIT_PERIOD",
+            ["connector_template", "max_wait_period"],
+            self.load,
+            isNumber=True,
+            default=0
+        )
         
         self.malicious_label = "IPRegistry:malicious"
         self.suspicious_label = "IPRegistry:suspicious"

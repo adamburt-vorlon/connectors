@@ -522,8 +522,7 @@ class ConnectorIPRegsitry:
                 # If there is a batch size greater than 1 defined, then use
                 # the batch storage                    
                 
-                # Test the last update TTL
-                needs_updating = True
+                stix_objects = None
                 
                 # Check to see if the indicator already exists
                 existing_indicator = self.helper.api.indicator.read(
@@ -551,15 +550,30 @@ class ConnectorIPRegsitry:
                             json_data = {}
                 
                 # Add to the cache
+                now = datetime.now(pytz.UTC)
                 if obs_standard_id not in json_data:
                     json_data[obs_standard_id] = {
                         "obs_value": obs_value,
-                        "observable": observable
+                        "observable": observable,
+                        "date_added": now.timestamp()
                     }
                 
-                # If we have reached our batch size, the process them all
+                # If we have reached our batch size, then process them all
                 if len(json_data) > self.config.batch_size:
                     stix_objects = self._collect_intelligence(json_data)
+                
+                # If there is a defined max wait period, check it
+                elif self.config.max_wait_period > 0:
+                    all_timestamps = [v.get('date_added') for k, v in json_data.items()]
+                    latest_timestamp = sorted(all_timestamps)[0]
+                    max_datetime = (datetime.fromtimestamp(latest_timestamp) + timedelta(minutes=self.config.max_wait_period)).timestamp()
+                    if max_datetime < now.timestamp():
+                        stix_objects = self._collect_intelligence(json_data)
+                    else:
+                        info_msg = "[CONNECTOR] Observer lookup added to cache"
+                        with open(cache_file_path, "w") as pf:
+                            json.dump(json_data, pf)
+                        return info_msg
                 
                 # Otherwise save and continue
                 else:
