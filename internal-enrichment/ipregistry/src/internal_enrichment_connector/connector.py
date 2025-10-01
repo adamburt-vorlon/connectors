@@ -75,7 +75,7 @@ class ConnectorIPRegsitry:
                 
         try:
             all_ip_data: ApiResponse = self.ipr_client.batch_lookup_ips(all_ips)
-            self.helper.set_state({"status": f"consumed {all_ip_data.credits.consumed} / {all_ip_data.credits.remaining}"})
+            self.helper.set_state({"status": f"tokens remaining: {all_ip_data.credits.remaining}"})
         except ApiError as err:
             self.helper.set_state({"status": err.message})
             self.helper.connector_logger.error(err.message)
