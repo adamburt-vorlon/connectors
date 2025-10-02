@@ -1,6 +1,6 @@
 services:
-  connector-import-catalog-data:
-    image: importcatalogdata:latest
+  connector-catalog-data-import:
+    image: catalogdataimport:latest
     environment:
       - OPENCTI_URL=${OPENCTI_BASE_URL}
       - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
@@ -19,7 +19,7 @@ services:
     volumes:
       - type: bind
         source: ./src/last_run.txt
-        target: last_run.txt
+        target: /opt/opencti-connector-template/last_run.txt
     networks:
       - opencti-network
 
