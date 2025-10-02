@@ -15,6 +15,7 @@ class ConfigConnector:
         # Load configuration file
         self.load = self._load_config()
         self._initialize_configurations()
+        self.get_last_run()
 
     @staticmethod
     def _load_config() -> dict:
@@ -35,7 +36,9 @@ class ConfigConnector:
         if os.path.exists(self.last_run_file):
             with open(self.last_run_file, "r") as fp:
                 try:
-                    self.last_run = datetime.fromtimestamp(fp.read())
+                    data = fp.read()
+                    int_data = float(data)
+                    self.last_run = datetime.fromtimestamp(int_data)
                 except:
                     self.last_run = datetime(1970,1,1,0,0,0,0,tzinfo=pytz.UTC)
         else:
@@ -43,7 +46,7 @@ class ConfigConnector:
     
     def set_last_run(self, dt: datetime):
         with open(self.last_run_file, "w") as pf:
-            pf.write(dt.timestamp())
+            pf.write(str(dt.timestamp()))
 
     def _initialize_configurations(self) -> None:
         """
@@ -52,6 +55,14 @@ class ConfigConnector:
         """
         # OpenCTI configurations
         self.last_run_file = "last_run.txt"
+        
+        self.connector_name = get_config_variable(
+            "CONNECTOR_NAME",
+            ["connector", "name"],
+            self.load,
+            default="Catalog Data Import"
+        )
+        
         self.duration_period = get_config_variable(
             "CONNECTOR_DURATION_PERIOD",
             ["connector", "duration_period"],
@@ -105,5 +116,3 @@ class ConfigConnector:
             self.load,
             default="",
         )
-        
-        self.last_run: datetime = self.get_last_run()
