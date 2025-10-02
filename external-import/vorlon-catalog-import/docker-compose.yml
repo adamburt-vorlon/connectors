@@ -16,10 +16,10 @@ services:
       - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
       - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
       - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
-      - COLLECT_SERVICES=${COLLECT_SERVICES}
-      - INCLUDE_HIDDEN_SERVICES=${INCLUDE_HIDDEN_SERVICES}
-      - COLLECT_ENDPOINTS=${COLLECT_ENDPOINTS}
-      - COLLECT_SCOPES=${COLLECT_SCOPES}
+    volumes:
+      - type: bind
+        source: ./src/last_run.txt
+        target: last_run.txt
     networks:
       - opencti-network
 

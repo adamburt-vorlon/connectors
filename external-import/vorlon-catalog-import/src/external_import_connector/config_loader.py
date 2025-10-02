@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
-
+from datetime import datetime
+import pytz
 import yaml
 from pycti import get_config_variable
 
@@ -30,12 +31,27 @@ class ConfigConnector:
 
         return config
 
+    def get_last_run(self):
+        if os.path.exists(self.last_run_file):
+            with open(self.last_run_file, "r") as fp:
+                try:
+                    self.last_run = datetime.fromtimestamp(fp.read())
+                except:
+                    self.last_run = datetime(1970,1,1,0,0,0,0,tzinfo=pytz.UTC)
+        else:
+            self.last_run = datetime(1970,1,1,0,0,0,0,tzinfo=pytz.UTC)
+    
+    def set_last_run(self, dt: datetime):
+        with open(self.last_run_file, "w") as pf:
+            pf.write(dt.timestamp())
+
     def _initialize_configurations(self) -> None:
         """
         Connector configuration variables
         :return: None
         """
         # OpenCTI configurations
+        self.last_run_file = "last_run.txt"
         self.duration_period = get_config_variable(
             "CONNECTOR_DURATION_PERIOD",
             ["connector", "duration_period"],
@@ -90,30 +106,4 @@ class ConfigConnector:
             default="",
         )
         
-        self.collect_services = get_config_variable(
-            "COLLECT_SERVICES",
-            ["connector_template", "collect_services"],
-            self.load,
-            default=True,
-        )
-        
-        self.include_hidden_services = get_config_variable(
-            "INCLUDE_HIDDEN_SERVICES",
-            ["connector_template", "include_hidden_services"],
-            self.load,
-            default=False,
-        )
-        
-        self.collect_endpoints = get_config_variable(
-            "COLLECT_ENDPOINTS",
-            ["connector_template", "collect_endpoints"],
-            self.load,
-            default=True,
-        )
-        
-        self.collect_scopes = get_config_variable(
-            "COLLECT_SCOPES",
-            ["connector_template", "collect_scopes"],
-            self.load,
-            default=True,
-        )
+        self.last_run: datetime = self.get_last_run()

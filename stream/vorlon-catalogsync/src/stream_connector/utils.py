@@ -1,1 +1,6 @@
-#  Utilities: helper functions, classes, or modules that provide common, reusable functionality across a codebase
+from pymongo import MongoClient
+
+
+def mongodb_connect(connection_string: str) -> MongoClient:
+    mongo_client: MongoClient = MongoClient(connection_string)
+    return mongo_client

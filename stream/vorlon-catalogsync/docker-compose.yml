@@ -1,33 +1,24 @@
-version: '3'
 services:
-  connector-template:
-    image: opencti/connector-template:rolling
+  connector-catalogsync:
+    image: catalogsync:latest
     environment:
       # Connector's generic execution parameters
-      - OPENCTI_URL=http://localhost
-      - OPENCTI_TOKEN=CHANGEME
-      # Connector's definition parameters REQUIRED
-      - CONNECTOR_ID=CHANGEME
-      - CONNECTOR_NAME=CHANGEME
-      - CONNECTOR_SCOPE=CHANGEME
-      - CONNECTOR_LOG_LEVEL=error
-      - CONNECTOR_LIVE_STREAM_ID=live # ID of the live stream created in the OpenCTI UI
-      - CONNECTOR_LIVE_STREAM_LISTEN_DELETE=true
-      - CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES=true
-
-      # Connector's custom execution parameters
-      - CONNECTOR_TEMPLATE_API_BASE_URL=CHANGEME
-      - CONNECTOR_TEMPLATE_API_KEY=CHANGEME
-
-      # Add proxy parameters below if needed
-      # - HTTP_PROXY=CHANGEME
-      # - HTTPS_PROXY=CHANGEME
-      # - NO_PROXY=CHANGEME
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID${CONNECTOR_ID}=
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_LIVE_STREAM_ID=${CONNECTOR_LIVE_STREAM_ID} # ID of the live stream created in the OpenCTI UI
+      - CONNECTOR_LIVE_STREAM_LISTEN_DELETE=${CONNECTOR_LIVE_STREAM_LISTEN_DELETE}
+      - CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES=${CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES}
+      - MONGO_CONN_STR=${MONGO_CONN_STR}
+      - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
+      - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
+      - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
+    networks:
+      - opencti-network
     restart: always
-    # networks:
-    #   - docker_default
-
-# networks:
-#   default:
-#     external: true
-#     name: docker_default
+networks:
+  opencti-network:
+    external: true
