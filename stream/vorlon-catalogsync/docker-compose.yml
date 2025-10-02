@@ -1,0 +1,24 @@
+services:
+  connector-catalogsync:
+    image: catalogsync:latest
+    environment:
+      # Connector's generic execution parameters
+      - OPENCTI_URL=${OPENCTI_BASE_URL}
+      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
+      - CONNECTOR_ID${CONNECTOR_ID}=
+      - CONNECTOR_NAME=${CONNECTOR_NAME}
+      - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
+      - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
+      - CONNECTOR_LIVE_STREAM_ID=${CONNECTOR_LIVE_STREAM_ID} # ID of the live stream created in the OpenCTI UI
+      - CONNECTOR_LIVE_STREAM_LISTEN_DELETE=${CONNECTOR_LIVE_STREAM_LISTEN_DELETE}
+      - CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES=${CONNECTOR_LIVE_STREAM_NO_DEPENDENCIES}
+      - MONGO_CONN_STR=${MONGO_CONN_STR}
+      - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
+      - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
+      - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
+    networks:
+      - opencti-network
+    restart: always
+networks:
+  opencti-network:
+    external: true
