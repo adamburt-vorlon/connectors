@@ -37,25 +37,21 @@ class ConfigConnector:
         :return: None
         """
         # OpenCTI configurations
+        
+        self.connector_name = get_config_variable(
+            "CONNECTOR_NAME",
+            ["connector", "name"],
+            self.load,
+            default="App Table Import"
+        )
+        
         self.duration_period = get_config_variable(
             "CONNECTOR_DURATION_PERIOD",
             ["connector", "duration_period"],
-            self.load,
+            self.load
         )
 
         # Connector extra parameters
-        self.api_base_url = get_config_variable(
-            "CONNECTOR_TEMPLATE_API_BASE_URL",
-            ["connector_template", "api_base_url"],
-            self.load,
-        )
-
-        self.api_key = get_config_variable(
-            "CONNECTOR_TEMPLATE_API_KEY",
-            ["connector_template", "api_key"],
-            self.load,
-        )
-
         self.tlp_level = get_config_variable(
             "CONNECTOR_TEMPLATE_TLP_LEVEL",
             ["connector_template", "tlp_level"],
