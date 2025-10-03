@@ -56,9 +56,9 @@ class ConfigConnector:
     def set_last_run(self, dt: datetime):
         with open(self.last_run_file, "w") as pf:
             json.dump({
-                "services": self.last_run_services.timestamp(),
-                "endpoints": self.last_run_endpoints.timestamp(),
-                "scopes": self.last_run_scopes.timestamp()
+                "services": dt.timestamp(),
+                "endpoints": dt.timestamp(),
+                "scopes": dt.timestamp()
             },pf)
 
     def _initialize_configurations(self) -> None:
