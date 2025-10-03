@@ -29,3 +29,4 @@ external-import/vorlon-app-table-import/data/last_run.txt
 /stream/vorlon-app-table-sync/src/env
 /internal-enrichment/ipregistry/src/env
 /stream/vorlon-catalogsync/src/env
+/external-import/vorlon-catalog-import/src/last_run.json
