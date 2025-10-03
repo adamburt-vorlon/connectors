@@ -154,7 +154,7 @@ class ConnectorCatalogImport:
                     "path_enc": method,
                     "description": description,
                     "x_opencti_main_observable": True,
-                    "labels": ["endpoint"]
+                    "labels": ["endpoint", service_id]
                 }
                 stix_objects.append(endpoint_obj)
                 if permissions:

@@ -3,9 +3,10 @@ services:
     image: catalogsync:latest
     environment:
       # Connector's generic execution parameters
-      - OPENCTI_URL=${OPENCTI_BASE_URL}
-      - OPENCTI_TOKEN=${OPENCTI_API_TOKEN}
-      - CONNECTOR_ID${CONNECTOR_ID}=
+      - OPENCTI_URL=${OPENCTI_URL}
+      - OPENCTI_TOKEN=${OPENCTI_TOKEN}
+      # Connector's definition parameters REQUIRED
+      - CONNECTOR_ID=${CONNECTOR_ID}
       - CONNECTOR_NAME=${CONNECTOR_NAME}
       - CONNECTOR_SCOPE=${CONNECTOR_SCOPE}
       - CONNECTOR_LOG_LEVEL=${CONNECTOR_LOG_LEVEL}
@@ -16,9 +17,15 @@ services:
       - SCOPE_NAMESPACE=${SCOPE_NAMESPACE}
       - ENDPOINT_NAMESPACE=${ENDPOINT_NAMESPACE}
       - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
+      - CATALOG_USER_ID=${CATALOG_USER_ID} # The User ID of the catalog user to avoid affecting changes made by thi sync account
+
+      # Connector's custom execution parameters
+
+    restart: always
     networks:
       - opencti-network
-    restart: always
+
+    restart: no
 networks:
   opencti-network:
     external: true
