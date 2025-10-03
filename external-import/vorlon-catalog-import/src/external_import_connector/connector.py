@@ -121,7 +121,7 @@ class ConnectorCatalogImport:
                 applicable_labels.append("observable")
             
             # Create the service observable if it is within date
-            if service_updated_at > last_run_now:
+            if service_updated_at > self.config.last_run_services:
                 service_obj = {
                     "type": "Software",
                     "id": f"software--{service_deterministic_uuid}",
@@ -136,7 +136,7 @@ class ConnectorCatalogImport:
             # Collect the endpoints
             service_endpoints = mongo_endpoints.find({
                 "service": service_id,
-                "updated_at": {"$gt": self.config.last_run}
+                "updated_at": {"$gt": self.config.last_run_endpoints}
             })
             for endpoint in service_endpoints:
                 path = endpoint.get('path', '')
@@ -174,7 +174,7 @@ class ConnectorCatalogImport:
             # Collect all scopes for the service
             all_scopes = mongo_scopes.find({
                 "service_id": service_id,
-                "updated_at": {"$gt": self.config.last_run}
+                "updated_at": {"$gt": self.config.last_run_scopes}
             })
             for scope in all_scopes:
                 scope_id = scope.get('scope_id', '')

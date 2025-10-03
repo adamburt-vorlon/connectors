@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import datetime
+import json
 import pytz
 import yaml
 from pycti import get_config_variable
@@ -36,17 +37,29 @@ class ConfigConnector:
         if os.path.exists(self.last_run_file):
             with open(self.last_run_file, "r") as fp:
                 try:
-                    data = fp.read()
-                    int_data = float(data)
-                    self.last_run = datetime.fromtimestamp(int_data)
+                    json_data = json.load(fp)
                 except:
-                    self.last_run = datetime(1970,1,1,0,0,0,0,tzinfo=pytz.UTC)
-        else:
-            self.last_run = datetime(1970,1,1,0,0,0,0,tzinfo=pytz.UTC)
+                    json_data = {}
+                try:
+                    self.last_run_services = datetime.fromtimestamp(json_data.get('services')).astimezone(pytz.UTC)
+                except:
+                    pass
+                try:
+                    self.last_run_endpoints = datetime.fromtimestamp(json_data.get('endpoints')).astimezone(pytz.UTC)
+                except:
+                    pass
+                try:
+                    self.last_run_scopes = datetime.fromtimestamp(json_data.get('scopes')).astimezone(pytz.UTC)
+                except:
+                    pass
     
     def set_last_run(self, dt: datetime):
         with open(self.last_run_file, "w") as pf:
-            pf.write(str(dt.timestamp()))
+            json.dump({
+                "services": self.last_run_services.timestamp(),
+                "endpoints": self.last_run_endpoints.timestamp(),
+                "scopes": self.last_run_scopes.timestamp()
+            })
 
     def _initialize_configurations(self) -> None:
         """
@@ -54,7 +67,7 @@ class ConfigConnector:
         :return: None
         """
         # OpenCTI configurations
-        self.last_run_file = "last_run.txt"
+        self.last_run_file = "last_run.json"
         
         self.connector_name = get_config_variable(
             "CONNECTOR_NAME",
@@ -116,3 +129,7 @@ class ConfigConnector:
             self.load,
             default="",
         )
+        
+        self.last_run_services = datetime(1970,1,1).astimezone(pytz.UTC)
+        self.last_run_endpoints = datetime(1970,1,1).astimezone(pytz.UTC)
+        self.last_run_scopes = datetime(1970,1,1).astimezone(pytz.UTC)
