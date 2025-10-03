@@ -105,6 +105,7 @@ class ConnectorAppTableStream:
         vendor = data.get('vendor','')
         obs_id = data.get('id')
         if self.service_is_valid(vendor):
+            self.helper.connector_logger.info("[CREATE]")
             pg = postgres_connect(self.config.pg_conn_str)
             cursor = pg.cursor()
             
@@ -220,7 +221,6 @@ class ConnectorAppTableStream:
         # Handle creation
         if msg.event == "create":
             self.create_app(data.get('data', {}))
-            self.helper.connector_logger.info("[CREATE]")
 
         # Handle update
         if msg.event == "update":
@@ -232,13 +232,13 @@ class ConnectorAppTableStream:
                     event_type = event
                     break
             if event_type:
-                self.update_app(event_type, data.get('data', {}))
                 self.helper.connector_logger.info("[UPDATE]")
+                self.update_app(event_type, data.get('data', {}))
 
         # Handle delete
         if msg.event == "delete":
-            self.delete_app(data.get('data', {}))
             self.helper.connector_logger.info("[DELETE]")
+            self.delete_app(data.get('data', {}))
 
         # ===========================
         # === Add your code above ===
