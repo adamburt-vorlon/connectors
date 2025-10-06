@@ -213,7 +213,11 @@ class ConnectorCatalogSync:
         target_type, target_labels, target_value = self.get_type_labels_value(target_obs)
         
         # Switch source / destination of reqired
-        if source_type == "Text":
+        if source_type == "Text" and target_type == "Software":
+            source_obs, target_obs = target_obs, source_obs
+        elif source_type == "Directory" and target_type == "Software":
+            source_obs, target_obs = target_obs, source_obs
+        elif source_type == "Text" and target_type == "Directory":
             source_obs, target_obs = target_obs, source_obs
         
         source_type, source_labels, source_value = self.get_type_labels_value(source_obs)
@@ -221,37 +225,76 @@ class ConnectorCatalogSync:
         source_method = source_obs.get('path_enc')
         target_method = target_obs.get('path_enc')
         
+        # Confirm the source and destination exist
         mongo_client = MongoClient(self.config.mongo_conn_str)
         catalog = mongo_client.catalog
         mongo_endpoints = catalog.endPoint
-        matching_endpoints = [x for x in mongo_endpoints.find({"path": source_value, "method": source_method})]
-        if len(matching_endpoints) == 1:
-            matching_endpoint = matching_endpoints[0]
-            endpoint_id = matching_endpoint.get('_id')
-            properties = matching_endpoint.get('properties', {})
-            permissions: list = properties.get('permissions', [])
-            if target_value not in permissions:
-                permissions.append(target_value)
-                
-                # Perform the update
-                try:
-                    update = mongo_endpoints.update_one(
-                        {
-                            "_id": endpoint_id
-                        },
-                        {
-                            "$set": {
-                                "properties.permissions": permissions,
-                                "updated_at": datetime.now(pytz.UTC)
+        mongo_scopes = catalog.scope
+        mongo_services = catalog.service
+        
+        # Handle service to endpoint relationship
+        if source_type == "Software" and target_type == "Directory":
+            swid = source_obs.get('swid')
+            matching_service = mongo_services.find_one({"_id": swid})
+            matching_endpoint = mongo_endpoints.find_one({"path": target_value, "method": target_labels})
+            
+            if matching_endpoint and matching_scope:
+                endpoint_id = matching_endpoint.get('_id')
+                properties = matching_endpoint.get('properties', {})
+                permissions: list = properties.get('permissions', [])
+                if target_value not in permissions:
+                    permissions.append(target_value)
+                    
+                    # Perform the update
+                    try:
+                        update = mongo_endpoints.update_one(
+                            {
+                                "_id": endpoint_id
+                            },
+                            {
+                                "$set": {
+                                    "properties.permissions": permissions,
+                                    "updated_at": datetime.now(pytz.UTC)
+                                }
                             }
-                        }
-                    )
-                    # If it was not successful, delete the relationship
-                    if update.matched_count < 1:
-                        self.helper.api.stix_core_relationship.delete(id=relationship_id)
-                except Exception as err:
-                    pass
-                
+                        )
+                        # If it was not successful, delete the relationship
+                        if update.matched_count < 1:
+                            self.helper.api.stix_core_relationship.delete(id=relationship_id)
+                    except Exception as err:
+                        pass
+        
+        # Handle endpoint to scope mapping
+        elif source_type == "Directory" and target_type == "Text":
+            matching_endpoint = mongo_endpoints.find_one({"path": source_value, "method": source_method})
+            matching_scope = mongo_scopes.find_one({"scope_id": target_value, "service_id": {"$in": target_labels}})
+            
+            if matching_endpoint and matching_scope:
+                endpoint_id = matching_endpoint.get('_id')
+                properties = matching_endpoint.get('properties', {})
+                permissions: list = properties.get('permissions', [])
+                if target_value not in permissions:
+                    permissions.append(target_value)
+                    
+                    # Perform the update
+                    try:
+                        update = mongo_endpoints.update_one(
+                            {
+                                "_id": endpoint_id
+                            },
+                            {
+                                "$set": {
+                                    "properties.permissions": permissions,
+                                    "updated_at": datetime.now(pytz.UTC)
+                                }
+                            }
+                        )
+                        # If it was not successful, delete the relationship
+                        if update.matched_count < 1:
+                            self.helper.api.stix_core_relationship.delete(id=relationship_id)
+                    except Exception as err:
+                        pass
+                    
         mongo_client.close()
     
     def update_software(self, obs_data):
@@ -282,7 +325,11 @@ class ConnectorCatalogSync:
         target_type, target_labels, target_value = self.get_type_labels_value(target_obs)
         
         # Switch source / destination of reqired
-        if source_type == "Text":
+        if source_type == "Text" and target_type == "Directory":
+            source_obs, target_obs = target_obs, source_obs
+        elif source_type == "Directory" and target_type == "Software":
+            source_obs, target_obs = target_obs, source_obs
+        elif source_type == "Text" and target_type == "Directory":
             source_obs, target_obs = target_obs, source_obs
         
         source_type, source_labels, source_value = self.get_type_labels_value(source_obs)
@@ -292,41 +339,72 @@ class ConnectorCatalogSync:
         
         mongo_client = MongoClient(self.config.mongo_conn_str)
         catalog = mongo_client.catalog
+        mongo_services = catalog.service
         mongo_endpoints = catalog.endPoint
-        matching_endpoints = [x for x in mongo_endpoints.find({"path": source_value, "method": source_method})]
-        if len(matching_endpoints) == 1:
-            matching_endpoint = matching_endpoints[0]
-            endpoint_id = matching_endpoint.get('_id')
-            properties = matching_endpoint.get('properties', {})
-            permissions: list = properties.get('permissions', [])
-            if target_value in permissions:
-                permissions.remove(target_value)
-                try:
-                    update = mongo_endpoints.update_one(
-                        {
-                            "_id": endpoint_id
-                        },
-                        {
-                            "$set": {
-                                "properties.permissions": permissions,
-                                "updated_at": datetime.now(pytz.UTC)
+        mongo_scopes = catalog.scope
+        
+        original_relationship = {
+            "fromId": obs_data.get('source_ref'),
+            "toId": obs_data.get('target_ref'),
+            "stix_id": obs_data.get('id'),
+            "relationship_type": obs_data.get('relationship_type'),
+            "start_time": obs_data.get('start_time'),
+            "stop_time": obs_data.get('stop_time'),
+            "revoked": obs_data.get('revoked'),
+            "confidence": obs_data.get('confidence'),
+            "lang": obs_data.get('lang'),
+            "created": obs_data.get('created'),
+            "modified": obs_data.get('modified')
+        }
+        
+        # Handle service and endpoint relationships
+        # These relationships should not be deleted in 
+        # OpenCTI, so the action is to re-create the relationship
+        if source_type == "Software" and target_type == "Directory":    
+            try:
+                self.helper.api.stix_core_relationship.create(**original_relationship)
+            except Exception as err:
+                self.helper.connector_logger.warning(err)
+        
+        # Handle endpoint and scope relationships
+        # If the endpoint or scope cannot be found
+        # then the relationship is re-created
+        elif source_type == "Directory" and target_type == "Text":
+            matching_endpoint = mongo_endpoints.find_one({"path": source_value, "method": source_method})
+            matching_endpoint_service_id = matching_endpoint.get('service')
+            matching_scope = mongo_scopes.find_one({"scope_id": target_value and matching_endpoint_service_id in target_labels})
+            if matching_endpoint and matching_scope:
+                endpoint_id = matching_endpoint.get('_id')
+                properties = matching_endpoint.get('properties', {})
+                permissions: list = properties.get('permissions', [])
+                if target_value in permissions:
+                    permissions.remove(target_value)
+                    try:
+                        update = mongo_endpoints.update_one(
+                            {
+                                "_id": endpoint_id
+                            },
+                            {
+                                "$set": {
+                                    "properties.permissions": permissions,
+                                    "updated_at": datetime.now(pytz.UTC)
+                                }
                             }
-                        }
-                    )
-                    if update.modified_count < 1:
-                        self.helper.api.stix_core_relationship.create(
-                            stix_id=obs_data.get('id'),
-                            relationship_type=obs_data.get('relationship_type'),
-                            created=obs_data.get('created'),
-                            modified=obs_data.get('modified'),
-                            confidence=obs_data.get('confidence'),
-                            start_time=obs_data.get('start_time'),
-                            stop_time=obs_data.get('stop_time'),
-                            from_id=obs_data.get('source_ref'),
-                            to_id=obs_data.get('target_ref')
                         )
-                except Exception as err:
-                    pass
+                        if update.modified_count < 1:
+                            self.helper.api.stix_core_relationship.create(
+                                stix_id=obs_data.get('id'),
+                                relationship_type=obs_data.get('relationship_type'),
+                                created=obs_data.get('created'),
+                                modified=obs_data.get('modified'),
+                                confidence=obs_data.get('confidence'),
+                                start_time=obs_data.get('start_time'),
+                                stop_time=obs_data.get('stop_time'),
+                                from_id=obs_data.get('source_ref'),
+                                to_id=obs_data.get('target_ref')
+                            )
+                    except Exception as err:
+                        pass
         mongo_client.close()
 
     def get_labels(self, obs_data: dict) -> list[str]:
@@ -346,8 +424,19 @@ class ConnectorCatalogSync:
         if source_obs and target_obs:
             source_type, source_labels, source_value = self.get_type_labels_value(source_obs)
             target_type, target_labels, target_value = self.get_type_labels_value(target_obs)
-            if (source_type == "Directory" and "endpoint" in source_labels and target_type == "Text" and "scope" in target_labels) or (target_type == "Directory" and "endpoint" in target_labels and source_type == "Text" and "scope" in source_labels):
+            
+            # Service and endoint relationships
+            if source_type == "Software" and "service" in source_labels and target_type == "Directory" and "endpoint" in target_labels:
                 valid = True
+            elif source_type == "Directory" and "endpoint" in source_labels and target_type == "Software" and "service" in target_labels:
+                valid = True
+            
+            # Endpoint and scope relationships
+            elif source_type == "Directory" and "endpoint" in source_labels and target_type == "Text" and "scope" in target_labels:
+                valid = True
+            elif source_type == "Text" and "scope" in source_labels and target_type == "Directory" and "endpoint" in target_labels:
+                valid = True
+
         return valid
     
     def process_message(self, msg) -> None:
@@ -422,7 +511,6 @@ class ConnectorCatalogSync:
             # elif obs_type == "text":
             #     if "scope" in labels:
             #         self.delete_text(obs_data)
-
 
     def run(self) -> None:
         """
