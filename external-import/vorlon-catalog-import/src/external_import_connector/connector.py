@@ -108,7 +108,6 @@ class ConnectorCatalogImport:
             service_id = service.get('_id')
             service_name = service.get('name')
             properties = service.get('properties', {})
-            observable = properties.get('observable', False)
             service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
             service_description = service.get('description')
             service_updated_at: datetime = service.get('updated_at', datetime(1970,1,1)).astimezone(pytz.UTC)
@@ -132,112 +131,109 @@ class ConnectorCatalogImport:
                 }
                 stix_objects.append(service_obj)
                 
-            # Only collect endpoints or scopes if the
-            # service is observable
-            if observable:
             
-                # Collect the endpoints
-                service_endpoints = mongo_endpoints.find({
-                    "service": service_id,
-                    "updated_at": {"$gt": self.config.last_run_endpoints}
-                })
-                for endpoint in service_endpoints:
-                    path = endpoint.get('path', '')
-                    method = endpoint.get('method', '')
-                    endpoint_deterministic_uuid = uuid.uuid5(endpoints_namespace, f"{service_id}{path}{method}")
-                    description = endpoint.get('description', '')
-                    properties = endpoint.get('properties', {})
-                    permissions = properties.get('permissions', [])
-                    
-                    # Create the endpoint observable
-                    endpoint_obj = {
-                        "type": "Directory",
-                        "id": f"directory--{endpoint_deterministic_uuid}",
-                        "path": path,
-                        "path_enc": method,
-                        "description": description,
-                        "x_opencti_main_observable": True,
-                        "labels": ["endpoint", service_id]
-                    }
-                    stix_objects.append(endpoint_obj)
-                    if permissions:
-                        mapped_endpoints_to_scopes.update({
-                            f"directory--{endpoint_deterministic_uuid}": permissions
-                        })
-                    
-                    # Create the relationship to the service
-                    er = Relationship(
-                        source_ref=f"software--{service_deterministic_uuid}",
-                        target_ref=f"directory--{endpoint_deterministic_uuid}",
-                        relationship_type="related-to"
-                    )
-                    
-                    stix_objects.append(er)
+            # Collect the endpoints
+            service_endpoints = mongo_endpoints.find({
+                "service": service_id,
+                "updated_at": {"$gt": self.config.last_run_endpoints}
+            })
+            for endpoint in service_endpoints:
+                path = endpoint.get('path', '')
+                method = endpoint.get('method', '')
+                endpoint_deterministic_uuid = uuid.uuid5(endpoints_namespace, f"{service_id}{path}{method}")
+                description = endpoint.get('description', '')
+                properties = endpoint.get('properties', {})
+                permissions = properties.get('permissions', [])
                 
-                # Collect all scopes for the service
-                all_scopes = mongo_scopes.find({
-                    "service_id": service_id,
-                    "updated_at": {"$gt": self.config.last_run_scopes}
-                })
-                for scope in all_scopes:
-                    scope_id = scope.get('scope_id', '')
-                    scope_name = scope.get('scope_name', '')
-                    scope_description = scope.get('scope_description', '')
-                    scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_id}:{service_id}")
-                    applicable_labels = ["scope", service_id]
-                    access_sensitive = scope.get('access_sensitive', False)
-                    admin_capabilities = scope.get('admin_capabilities', False)
-                    access_pii = scope.get('access_pii', False)
-                    is_read = scope.get('is_read', False)
-                    is_write = scope.get('is_write', False)
-                    
-                    score = 0
-                    if access_sensitive:
-                        score += 10
-                        applicable_labels.append("access_sensitive")
-                    if admin_capabilities:
-                        score += 45
-                        applicable_labels.append("admin_capabilities")
-                    if access_pii:
-                        score += 20
-                        applicable_labels.append("access_pii")
-                    if is_read:
-                        score += 5
-                        applicable_labels.append("is_read")
-                    if is_write:
-                        score += 10
-                        applicable_labels.append("is_write")
-                    
-                    # Create the scope observable
-                    scope_obj = {
-                        "type": "Text",
-                        "id": f"text--{scope_deterministic_uuid}",
-                        "value": scope_name,
-                        "description": scope_description,
-                        "score": score,
-                        "x_opencti_main_observable": True,
-                        "x_opencti_author": service_id,
-                        "labels": applicable_labels
-                    }
-                    stix_objects.append(scope_obj)
-                    
-                    # Create the relationship
-                    sr = Relationship(
-                        source_ref=f"software--{service_deterministic_uuid}",
-                        target_ref=f"text--{scope_deterministic_uuid}",
-                        relationship_type="related-to"
-                    )
-                    stix_objects.append(sr)
-                    
-                    if mapped_endpoints_to_scopes:
-                        for det_id, endpoint_scopes in mapped_endpoints_to_scopes.items():
-                            if scope_id in endpoint_scopes:
-                                esp = Relationship(
-                                    source_ref=f"text--{scope_deterministic_uuid}",
-                                    target_ref=det_id,
-                                    relationship_type="related-to"
-                                )
-                                stix_objects.append(esp)
+                # Create the endpoint observable
+                endpoint_obj = {
+                    "type": "Directory",
+                    "id": f"directory--{endpoint_deterministic_uuid}",
+                    "path": path,
+                    "path_enc": method,
+                    "description": description,
+                    "x_opencti_main_observable": True,
+                    "labels": ["endpoint", service_id]
+                }
+                stix_objects.append(endpoint_obj)
+                if permissions:
+                    mapped_endpoints_to_scopes.update({
+                        f"directory--{endpoint_deterministic_uuid}": permissions
+                    })
+                
+                # Create the relationship to the service
+                er = Relationship(
+                    source_ref=f"software--{service_deterministic_uuid}",
+                    target_ref=f"directory--{endpoint_deterministic_uuid}",
+                    relationship_type="related-to"
+                )
+                
+                stix_objects.append(er)
+            
+            # Collect all scopes for the service
+            all_scopes = mongo_scopes.find({
+                "service_id": service_id,
+                "updated_at": {"$gt": self.config.last_run_scopes}
+            })
+            for scope in all_scopes:
+                scope_id = scope.get('scope_id', '')
+                scope_name = scope.get('scope_name', '')
+                scope_description = scope.get('scope_description', '')
+                scope_deterministic_uuid = uuid.uuid5(scopes_namespace, f"{scope_id}:{service_id}")
+                applicable_labels = ["scope", service_id]
+                access_sensitive = scope.get('access_sensitive', False)
+                admin_capabilities = scope.get('admin_capabilities', False)
+                access_pii = scope.get('access_pii', False)
+                is_read = scope.get('is_read', False)
+                is_write = scope.get('is_write', False)
+                
+                score = 0
+                if access_sensitive:
+                    score += 10
+                    applicable_labels.append("access_sensitive")
+                if admin_capabilities:
+                    score += 45
+                    applicable_labels.append("admin_capabilities")
+                if access_pii:
+                    score += 20
+                    applicable_labels.append("access_pii")
+                if is_read:
+                    score += 5
+                    applicable_labels.append("is_read")
+                if is_write:
+                    score += 10
+                    applicable_labels.append("is_write")
+                
+                # Create the scope observable
+                scope_obj = {
+                    "type": "Text",
+                    "id": f"text--{scope_deterministic_uuid}",
+                    "value": scope_name,
+                    "description": scope_description,
+                    "score": score,
+                    "x_opencti_main_observable": True,
+                    "x_opencti_author": service_id,
+                    "labels": applicable_labels
+                }
+                stix_objects.append(scope_obj)
+                
+                # Create the relationship
+                sr = Relationship(
+                    source_ref=f"software--{service_deterministic_uuid}",
+                    target_ref=f"text--{scope_deterministic_uuid}",
+                    relationship_type="related-to"
+                )
+                stix_objects.append(sr)
+                
+                if mapped_endpoints_to_scopes:
+                    for det_id, endpoint_scopes in mapped_endpoints_to_scopes.items():
+                        if scope_id in endpoint_scopes:
+                            esp = Relationship(
+                                source_ref=f"text--{scope_deterministic_uuid}",
+                                target_ref=det_id,
+                                relationship_type="related-to"
+                            )
+                            stix_objects.append(esp)
 
         # ===========================
         # === Add your code above ===
