@@ -439,6 +439,19 @@ class ConnectorCatalogSync:
 
         return valid
     
+    def valid_observable(self, obs_data, user_id: str) -> bool:
+        valid = False
+        obs_type = obs_data.get('type', '')
+        obs_labels = obs_data.get('labels', [])
+        
+        if obs_type == "text" and "scope" in obs_labels:
+            valid = True
+        elif obs_type == "directory" and "endpoint" in obs_labels:
+            valid = True
+        elif obs_type == "software" and "service" in obs_labels:
+            valid = True
+        return valid
+    
     def process_message(self, msg) -> None:
         """
         Main process if connector successfully works
@@ -470,15 +483,9 @@ class ConnectorCatalogSync:
                 if self.valid_relationship(obs_data, user_id):
                     self.helper.connector_logger.info("[CREATE]")
                     self.create_relationship(obs_data)
-            # elif obs_type == "software":
-            #     if "service" in labels:
-            #         self.create_software(obs_data)
-            # elif obs_type == "directory":
-            #     if "endpoint" in labels:
-            #         self.create_directory(obs_data)
             # elif obs_type == "text":
-            #     if "scope" in labels:
-            #         self.create_text(obs_data)
+            #     if self.valid_observable(obs_data, user_id):
+            #         pass
         
         # Handle update
         if msg.event == "update":
@@ -486,15 +493,10 @@ class ConnectorCatalogSync:
                 if self.valid_relationship(obs_data, user_id):
                     self.helper.connector_logger.info("[UPDATE]")
                     self.update_relationship(obs_data)
-            # elif obs_type == "software":
-            #     if "service" in labels:
-            #         self.update_software(obs_data)
-            # elif obs_type == "directory":
-            #     if "endpoint" in labels:
-            #         self.update_directory(obs_data)
             # elif obs_type == "text":
-            #     if "scope" in labels:
-            #         self.update_text(obs_data)
+            #     if self.valid_observable(obs_data, user_id):
+            #         if obs_type == "text":
+            #             self.update_text(obs_data)
 
         # Handle delete
         if msg.event == "delete":
@@ -502,15 +504,9 @@ class ConnectorCatalogSync:
                 if self.valid_relationship(obs_data, user_id):
                     self.helper.connector_logger.info("[DELETE]")
                     self.delete_relationship(obs_data)
-            # elif obs_type == "software":
-            #     if "service" in labels:
-            #         self.delete_software(obs_data)
-            # elif obs_type == "directory":
-            #     if "endpoint" in labels:
-            #         self.delete_directory(obs_data)
             # elif obs_type == "text":
-            #     if "scope" in labels:
-            #         self.delete_text(obs_data)
+            #     if self.valid_observable(obs_data, user_id):
+            #         pass
 
     def run(self) -> None:
         """
