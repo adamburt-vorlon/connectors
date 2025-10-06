@@ -80,8 +80,6 @@ class ConnectorCatalogImport:
         :return: List of STIX objects
         """
         stix_objects = []
-        
-        last_run_now = datetime.now(pytz.UTC)
 
         # ===========================
         # === Add your code below ===
@@ -240,9 +238,6 @@ class ConnectorCatalogImport:
                                     relationship_type="related-to"
                                 )
                                 stix_objects.append(esp)
-        
-        # Set the last run
-        self.config.set_last_run(last_run_now)
 
         # ===========================
         # === Add your code above ===
@@ -300,6 +295,10 @@ class ConnectorCatalogImport:
             # ===========================
             # === Add your code below ===
             # ===========================
+            
+            # Set the last run immediately to prevent other instances over-writing too much data
+            self.config.set_last_run(datetime.now(pytz.UTC))
+            
             stix_objects = self._collect_intelligence()
 
             if len(stix_objects):
