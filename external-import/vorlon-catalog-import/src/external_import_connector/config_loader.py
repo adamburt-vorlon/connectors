@@ -41,24 +41,24 @@ class ConfigConnector:
                 except:
                     json_data = {}
                 try:
-                    self.last_run_services = datetime.fromtimestamp(json_data.get('services')).astimezone(pytz.UTC)
+                    self.last_run_services = datetime.fromisoformat(json_data.get('services')).astimezone(pytz.UTC)
                 except:
                     pass
                 try:
-                    self.last_run_endpoints = datetime.fromtimestamp(json_data.get('endpoints')).astimezone(pytz.UTC)
+                    self.last_run_endpoints = datetime.fromisoformat(json_data.get('endpoints')).astimezone(pytz.UTC)
                 except:
                     pass
                 try:
-                    self.last_run_scopes = datetime.fromtimestamp(json_data.get('scopes')).astimezone(pytz.UTC)
+                    self.last_run_scopes = datetime.fromisoformat(json_data.get('scopes')).astimezone(pytz.UTC)
                 except:
                     pass
     
     def set_last_run(self, dt: datetime):
         with open(self.last_run_file, "w") as pf:
             json.dump({
-                "services": dt.timestamp(),
-                "endpoints": dt.timestamp(),
-                "scopes": dt.timestamp()
+                "services": dt.isoformat(),
+                "endpoints": dt.isoformat(),
+                "scopes": dt.isoformat()
             },pf)
 
     def _initialize_configurations(self) -> None:
