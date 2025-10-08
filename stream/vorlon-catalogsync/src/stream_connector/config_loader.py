@@ -38,6 +38,41 @@ class ConfigConnector:
         # OpenCTI configurations
 
         # Connector extra parameters
+        self.connector_name = get_config_variable(
+            "CONNECTOR_NAME",
+            ["connector", "name"],
+            self.load,
+            default="Catalog Sync"
+        )
+        
+        self.mongo_conn_str = get_config_variable(
+            "MONGO_CONN_STR",
+            ["connector_template", "mongo_conn_str"],
+            self.load,
+            default=""
+        )
+        
+        self.scope_namespace = get_config_variable(
+            "SCOPE_NAMESPACE",
+            ["connector_template", "scope_namespace"],
+            self.load,
+            default=""
+        )
+        
+        self.endpoint_namespace = get_config_variable(
+            "ENDPOINT_NAMESPACE",
+            ["connector_template", "endpoint_namespace"],
+            self.load,
+            default=""
+        )
+        
+        self.service_namespace = get_config_variable(
+            "SERVICE_NAMESPACE",
+            ["connector_template", "service_namespace"],
+            self.load,
+            default=""
+        )
+        
         self.api_base_url = get_config_variable(
             "CONNECTOR_TEMPLATE_API_BASE_URL",
             ["connector_template", "api_base_url"],
@@ -48,4 +83,11 @@ class ConfigConnector:
             "CONNECTOR_TEMPLATE_API_KEY",
             ["connector_template", "api_key"],
             self.load,
+        )
+        
+        self.catalog_user_id = get_config_variable(
+            "CATALOG_USER_ID",
+            ["connector_template", "catalog_user_id"],
+            self.load,
+            default=""
         )

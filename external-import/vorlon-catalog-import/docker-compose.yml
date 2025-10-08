@@ -18,8 +18,8 @@ services:
       - SERVICE_NAMESPACE=${SERVICE_NAMESPACE}
     volumes:
       - type: bind
-        source: ./src/last_run.txt
-        target: /opt/opencti-connector-template/last_run.txt
+        source: ./src/last_run.json
+        target: /opt/opencti-connector-template/last_run.json
     networks:
       - opencti-network
 

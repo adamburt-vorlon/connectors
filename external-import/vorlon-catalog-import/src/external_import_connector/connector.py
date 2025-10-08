@@ -80,8 +80,6 @@ class ConnectorCatalogImport:
         :return: List of STIX objects
         """
         stix_objects = []
-        
-        last_run_now = datetime.now(pytz.UTC)
 
         # ===========================
         # === Add your code below ===
@@ -109,10 +107,10 @@ class ConnectorCatalogImport:
             mapped_endpoints_to_scopes = {}
             service_id = service.get('_id')
             service_name = service.get('name')
+            properties = service.get('properties', {})
             service_deterministic_uuid = uuid.uuid5(service_namespace, service_id)
             service_description = service.get('description')
             service_updated_at: datetime = service.get('updated_at', datetime(1970,1,1)).astimezone(pytz.UTC)
-            properties = service.get('properties', {})
             applicable_labels = service.get('categories', [])
             applicable_labels.append("service")
             if service.get('hidden', False):
@@ -121,7 +119,7 @@ class ConnectorCatalogImport:
                 applicable_labels.append("observable")
             
             # Create the service observable if it is within date
-            if service_updated_at > last_run_now:
+            if service_updated_at > self.config.last_run_services:
                 service_obj = {
                     "type": "Software",
                     "id": f"software--{service_deterministic_uuid}",
@@ -133,10 +131,11 @@ class ConnectorCatalogImport:
                 }
                 stix_objects.append(service_obj)
                 
+            
             # Collect the endpoints
             service_endpoints = mongo_endpoints.find({
                 "service": service_id,
-                "updated_at": {"$gt": self.config.last_run}
+                "updated_at": {"$gt": self.config.last_run_endpoints}
             })
             for endpoint in service_endpoints:
                 path = endpoint.get('path', '')
@@ -154,7 +153,7 @@ class ConnectorCatalogImport:
                     "path_enc": method,
                     "description": description,
                     "x_opencti_main_observable": True,
-                    "labels": ["endpoint"]
+                    "labels": ["endpoint", service_id]
                 }
                 stix_objects.append(endpoint_obj)
                 if permissions:
@@ -174,7 +173,7 @@ class ConnectorCatalogImport:
             # Collect all scopes for the service
             all_scopes = mongo_scopes.find({
                 "service_id": service_id,
-                "updated_at": {"$gt": self.config.last_run}
+                "updated_at": {"$gt": self.config.last_run_scopes}
             })
             for scope in all_scopes:
                 scope_id = scope.get('scope_id', '')
@@ -235,9 +234,6 @@ class ConnectorCatalogImport:
                                 relationship_type="related-to"
                             )
                             stix_objects.append(esp)
-        
-        # Set the last run
-        self.config.set_last_run(last_run_now)
 
         # ===========================
         # === Add your code above ===
@@ -295,6 +291,10 @@ class ConnectorCatalogImport:
             # ===========================
             # === Add your code below ===
             # ===========================
+            
+            # Set the last run immediately to prevent other instances over-writing too much data
+            self.config.set_last_run(datetime.now(pytz.UTC))
+            
             stix_objects = self._collect_intelligence()
 
             if len(stix_objects):
